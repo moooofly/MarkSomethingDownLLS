@@ -117,7 +117,9 @@ option java_multiple_files = true;
 option java_package = "io.opencensus.proto.exporter";
 option java_outer_classname = "ExporterProto";
 
-// 定义生成 go package 时指定的 package 名字
+// 设置生成 go package 时的 package 名字
+// 生成路径和 --go_out=plugins=grpc:$OUTDIR 的内容对应，即生成 exporter.pb.go 到 
+// $OUTDIR/github.com/census-instrumentation/opencensus-proto/gen-go/exporterproto 目录下面
 option go_package = "github.com/census-instrumentation/opencensus-proto/gen-go/exporterproto";
 
 message ExportSpanRequest {
