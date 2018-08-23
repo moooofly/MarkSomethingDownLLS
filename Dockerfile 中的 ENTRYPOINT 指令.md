@@ -81,7 +81,7 @@ $ docker run postgres
 
 - 启动 Postgres 的同时传递一些 parameters 到内部
 
-````
+```
 $ docker run postgres postgres --help
 ```
 
