@@ -169,4 +169,4 @@ apt-get -y update
 
 - 配置 golang 开发环境
 
-参照[这里](https://github.com/moooofly/dockerfiles/blob/master/GoDev/Dockerfile)进行安装；
+参照[这里](https://github.com/moooofly/dockerfiles/blob/master/go_develop_env/Dockerfile)进行安装；
