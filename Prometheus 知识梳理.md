@@ -8,6 +8,157 @@
 
 ----------
 
+## 代码参考
+
+### [client_golang/prometheus/expvar_collector_test.go](https://github.com/prometheus/client_golang/blob/master/prometheus/expvar_collector_test.go)
+
+- 基于 github.com/prometheus/client_golang/prometheus 提供的接口
+- 演示了如何将 expvar 数据 export 给 prometheus ；
+
+主要涉及：
+
+- prometheus.NewExpvarCollector()
+- prometheus.NewDesc()
+- prometheus.MustRegister()
+
+### [client_golang/examples/random](https://github.com/prometheus/client_golang/blob/master/examples/random/main.go)
+
+A simple example exposing fictional RPC latencies with different types of random distributions (uniform, normal, and exponential) as Prometheus metrics.
+
+> 设计一些数学知识
+
+主要涉及：
+
+- prometheus.NewSummaryVec()
+- prometheus.NewHistogram()
+- prometheus.MustRegister()
+
+### [opencensus-go/exporter/prometheus](https://github.com/census-instrumentation/opencensus-go/blob/master/exporter/prometheus/example/main.go)
+
+- 基于 github.com/prometheus/client_golang/prometheus 提供的接口
+- 演示了如何将 opencensus 的 stats 数据 export 给 prometheus ；
+
+主要涉及：
+
+- prometheus.Gatherer
+- prometheus.Registry
+- prometheus.NewDesc
+- prometheus.Collector
+- prometheus.Desc
+- prometheus.Metric
+- prometheus.CounterValue
+- prometheus.NewConstHistogram
+- prometheus.NewConstMetric
+
+
+### [moby/daemon/metrics.go](https://github.com/moby/moby/blob/master/daemon/metrics.go)
+
+- 基于 github.com/docker/go-metrics 和 github.com/prometheus/client_golang/prometheus
+- 演示了基于 go-metrics 和 client_golang 如何 export 数据给 prometheus
+
+主要涉及：
+
+- prometheus.Desc
+- prometheus.Metric
+- prometheus.MustNewConstMetric
+- prometheus.GaugeValue
+- go-metric 中定义的各种结构
+
+> 理论上讲，这种方式最好，但由于 go-metrics 没有实现针对 expvar 的支持，所以……
+
+
+## [docker/go-metrics](https://github.com/docker/go-metrics)
+
+一句话：This package is **small wrapper** around the **prometheus go client** to help enforce convention and best practices for metrics collection in **Docker projects**.
+
+### Terminology
+
+- Gauge: a metric that allows incrementing and decrementing a value
+- Counter: a metrics that can only increment its current count
+- Timer: a metric that allows collecting the duration of an action in seconds
+
+
+### 最佳实践
+
+> This packages is meant to be used for **collecting metrics in Docker projects**. It is not meant to be used as a replacement for the prometheus client but to help enforce consistent naming across metrics collected. If you have not already read the **prometheus best practices** around naming and labels you can read the page [here](https://prometheus.io/docs/practices/naming/).
+
+- 用于 Docker 项目中的 metrics 收集；
+- 该项目不是 prometheus go client 的替代品，而是用于帮助确保 metrics 收集时命名一致性问题的；
+- prometheus 关于 naming 和 labels 的最佳实践，详见："[METRIC AND LABEL NAMING](https://prometheus.io/docs/practices/naming/)"
+
+#### Docker 中特定的规则
+
+- Namespace and Subsystem
+
+> This package provides you with a `namespace` type that allows you to specify the **same namespace and subsystem** for your metrics.
+
+用于为 metrics 指定相同的 namespace 和 subsystem ；
+
+```golang
+ns := metrics.NewNamespace("engine", "daemon", metrics.Labels{
+        "version": dockerversion.Version,
+        "commit":  dockerversion.GitCommit,
+})
+```
+
+> In the example above we are creating metrics for the Docker engine's daemon package. `engine` would be the namespace in this example where `daemon` is the subsystem or package where we are collecting the metrics.
+
+上述代码为，针对 engine namespace 下的 daemon 子系统创建 metrics ；
+
+> A namespace also allows you to attach constant labels to the metrics such as the git commit and version that it is collecting.
+
+在 namespace 下，允许你附加 constant labels 到 metrics 上，例如 git commit 和 version 信息；
+
+- Declaring your Metrics
+
+> Try to keep all your metric declarations in one file. This makes it easy for others to see what constant labels are defined on the namespace and what labels are defined on the metrics when they are created.
+
+尽量将你所有的 metric 声明保存在同一个文件中；以方便查看指定 namespace 下定义了哪些 constant labels ，以及哪些 labels 归属于哪些 metrics ；
+
+
+- Use labels instead of multiple metrics
+
+> Labels allow you to define one metric such as the time it takes to perform a certain action on an object. If we wanted to collect timings on various container actions such as **create**, **start**, and **delete** then we can define one metric called `container_actions` and **use labels to specify the type of action**.
+
+（以下为个人理解）使用 labels 而不是 multiple metrics 的好处在于，能够进行有效的抽象；即仅需定义一个 metric + 抽象 label 的方式替代定义多个 metrics 的方式；
+
+```golang
+containerActions = ns.NewLabeledTimer("container_actions", "The number of milliseconds it takes to process each container action", "action")
+```
+
+在这里，container_actions 为 metric ；action 为 label name or key ；
+
+
+> The last parameter is the label name or key. When adding a data point to the metric you will use the `WithValues` function to specify the `action` that you are collecting for.
+
+```golang
+containerActions.WithValues("create").UpdateSince(start)
+```
+
+在这里，create 为 label 的 value ；
+
+- Always use a unit
+
+> The metric name should describe what you are measuring but you also need to provide the unit that it is being measured with. For a timer, the standard unit is seconds and a counter's standard unit is a total. For gauges you must provide the unit. This package provides a standard set of units for use within the Docker projects.
+
+metric name + metric unit 才是完整的描述；项目中提供了一个预定义集合用于 Docker 项目；
+
+```golang
+Nanoseconds Unit = "nanoseconds"
+Seconds     Unit = "seconds"
+Bytes       Unit = "bytes"
+Total       Unit = "total"
+```
+
+> If you need to use a unit but it is not defined in the package please open a PR to add it but first try to see if one of the already created units will work for your metric, i.e. seconds or nanoseconds vs adding milliseconds.
+
+自定义一个 unit 的办法：
+
+```golang
+metrics.Unit("info")
+metrics.Unit("cpus")
+metrics.Unit("containers")
+```
 
 ## [prometheus/prometheus](https://github.com/prometheus/prometheus)
 
@@ -329,4 +480,47 @@ type Registry struct {
 - Registry 负责收集已注册 collectors 的 metrics ；
 - Registry 负责汇聚 metrics 到 MetricFamilies 以便展示；
 - Registry 同时实现了 Registerer 和 Gatherer ；
+
+
+### [Desc](https://github.com/prometheus/client_golang/blob/master/prometheus/desc.go#L44)
+
+```
+// Desc is the descriptor used by every Prometheus Metric. It is essentially
+// the immutable meta-data of a Metric. The normal Metric implementations
+// included in this package manage their Desc under the hood. Users only have to
+// deal with Desc if they use advanced features like the ExpvarCollector or
+// custom Collectors and Metrics.
+// ...
+type Desc struct {
+  // fqName has been built from Namespace, Subsystem, and Name.
+  fqName string
+  // help provides some helpful information about this metric.
+  help string
+  // constLabelPairs contains precalculated DTO label pairs based on
+  // the constant labels.
+  constLabelPairs []*dto.LabelPair
+  // VariableLabels contains names of labels for which the metric
+  // maintains variable values.
+  variableLabels []string
+  // id is a hash of the values of the ConstLabels and fqName. This
+  // must be unique among all registered descriptors and can therefore be
+  // used as an identifier of the descriptor.
+  id uint64
+  // dimHash is a hash of the label names (preset and variable) and the
+  // Help string. Each Desc with the same fqName must have the same
+  // dimHash.
+  dimHash uint64
+  // err is an error that occurred during construction. It is reported on
+  // registration time.
+  err error
+}
+```
+
+要点：
+
+- 每一个 Prometheus Metric 都需要使用 Desc 作为 descriptor ；
+- Desc 只能用作 Metric 的 immutable meta-data ；
+- 在 prometheus/client_golang 中，普通的 Metric 实现已经涵盖了 Desc 的处理；
+- 用户只有在需要使用高级特性时，才需要自行处理 Desc ，例如使用 ExpvarCollector 或 custom Collectors ；
+
 
