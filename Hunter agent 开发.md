@@ -1,4 +1,9 @@
-# hunter agent 开发
+# Hunter agent 开发
+
+## 项目地址
+
+- [moooofly/hunter-agent](https://github.com/moooofly/hunter-agent)
+- [hunter-agent 完整功能列表](https://github.com/moooofly/hunter-agent/issues/1)
 
 ## 梳理
 
@@ -28,8 +33,7 @@ Blazing fast, structured, leveled logging in Go.
 - 基于 docker-compose 进行本地服务的构建（[这里](https://github.com/openzipkin/docker-zipkin#docker-compose)）
 
 
-
-## hunter-agent directory structure
+## hunter-agent 目录结构
 
 
 ```shell
@@ -134,7 +138,7 @@ Blazing fast, structured, leveled logging in Go.
 ----------
 
 
-## todo
+## TODO
 
 使用了很多以前没有使用过的 package ，需要理解
 
