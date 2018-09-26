@@ -766,6 +766,14 @@ import:
 [#238#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
 ```
 
+一个有意思的点：只有在执行 `glide update` 出错时（但并不是所有错误类型），才会需要你输入 username 和 Personal Access Token（注意，不是密码）
+
+```
+...
+Username for 'https://git.llsapp.com': fei.sun
+Password for 'https://fei.sun@git.llsapp.com':
+...
+```
 
 ## 参考
 
