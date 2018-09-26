@@ -5,7 +5,7 @@
 - 依赖管理的起点就是基于位于项目 root 目录下的 `glide.yaml` 开始的；
 - Glide 将 dependencies 保存在 `vendor` 目录中；Glide 正是用于管理 Go package 内 vendor 的目录工具；
 - Glide 通过扫描目标应用的源码或库文件来确定必要的 dependencies ；为了确定具体的 versions 和 locations （例如 aliases for forks），Glide 会读取按照一定规则编写的 `glide.yaml` 文件内容，并通过该信息获取相应的 dependencies ；
-- 获取的 dependencies 被导出到 `vendor/` 目录下，之后 go tools 就能够找到并进行使用；与此同时，还会生成一个名为 `glide.lock` 的文件，其中包含了全部 dependencies 相关的信息，包括那些 **transitive ones** ；
+- 获取的 dependencies 被导出到 `vendor/` 目录下，之后 go tools 就能够找到并进行使用；与此同时，还会生成一个名为 `glide.lock` 的文件，其中包含了全部 dependencies 相关的信息，包括那些 **transitive ones** ，即依赖的依赖所产生的内容；
 - Go 社区现在正在开发名为 [`dep`](https://github.com/golang/dep) 的项目用于进行依赖管理；**Please consider trying to migrate from Glide to dep**.
 
 ----------
@@ -296,6 +296,475 @@ $ glide up                       # Update to newest versions of the package
 - `glide name` -  returns the name of the package listed in the `glide.yaml` file.
 - `glide tree` -  inspect code and give you details about what is imported. This command is deprecated and will be removed in the near future.
 - `glide list` - Glide's list command shows an alphabetized list of all the packages that a project imports.
+
+
+## example-glide.yaml
+
+Ref: https://github.com/Masterminds/glide/blob/master/docs/example-glide.yaml
+
+```
+# The name of this package.
+# 被 vendor 的目标 package
+package: github.com/Masterminds/glide
+
+# External dependencies.
+import:
+  # Minimal definition
+  # 最简定义
+  # This will use "go get [-u]" to fetch and update the package, and it will
+  # attempt to keep the release at the tip of master. It does this by looking
+  # for telltale signs that this is a git, bzr, or hg repo, and then acting
+  # accordingly.
+  # 这种定义形式将使用 "go get [-u]" 命令来 fetch 和 update 包；
+  - package: github.com/kylelemons/go-gypsy
+
+  # Full definition
+  # 完整定义
+  # This will check out the given Git repo, set the version to master,
+  # use "git" (not "go get") to manage it, and alias the package to the
+  # import path github.com/Masterminds/cookoo
+  # 指定外部引用该 package 时的 import path
+  - package: github.com/Masterminds/cookoo
+    # 指定使用 git 命令，非 go get 命令
+    vcs: git
+    # 指定要 checkout 的版本（可以 branch/tag/hash 等）
+    version: master
+    # 指定 Git repo 的实际位置
+    repo: git@github.com:Masterminds/cookoo.git
+
+  # Here's an example with a commit hash for a version. Since repo is not
+  # specified, this will use git to to try to clone
+  # 'http://github.com/aokoli/goutils' and then set the revision to the given
+  # hash.
+  - package: github.com/aokoli/goutils
+    vcs: git
+    # 通过 commit hash 指定版本
+    version: 9c37978a95bd5c709a15883b6242714ea6709e64
+
+  # MASKING: This takes my fork of goamz (technosophos/goamz) and clones it
+  # as if it were the crowdmob/goamz package. This is incredibly useful for
+  # masking packages and/or working with forks or clones.
+  #
+  # Note that absolutely no namespace munging happens on the code. If you want
+  # that, you'll have to do it on your own. The intent of this masking was to
+  # make it so you don't have to vendor imports.
+  # 指定外部引用该 package 时的 import path
+  # 主要用途：
+  # 1. 对 package 进行 mask ，方便配合 fork 或 clone 使用
+  # 2. 可以针对某些 import 的 package 不做 vendor
+  - package: github.com/crowdmob/goamz
+    vcs: git
+    # 指定目标 Git repo 的实际位置，用于 mask 实际的 package 内容
+    repo: git@github.com:technosophos/goamz.git
+
+  - package: bzr.example.com/foo/bar/trunk
+    vcs: bzr
+    repo: bzr://bzr.example.com/foo/bar/trunk
+    # The version can be a branch, tag, commit id, or a semantic version
+    # constraint parsable by https://github.com/Masterminds/semver
+    # 通过 tag 指定版本
+    version: 1.0.0
+
+  - package: hg.example.com/foo/bar
+    vcs: hg
+    repo: http://hg.example.com/foo/bar
+    version: ae081cd1d6cc
+
+  # For SVN, the only valid version is a commit number. Tags and branches go in
+  # the repo URL.
+  - package: svn.example.com/foo/bar/trunk
+    vcs: svn
+    repo: http://svn.example.com/foo/bar/trunk
+
+
+  # If a package is dependent on OS, you can tell Glide to only
+  # fetch for certain OS or architectures.
+  #
+  # os can be any valid GOOS.
+  # arch can be any valid GOARCH.
+  - package: github.com/unixy/package
+    os:
+      - linux
+      - darwin
+    arch:
+      - amd64
+```
+
+glide.yaml 的主要作用：
+
+- It names the current package
+- It declares external dependencies
+
+## 坑
+
+### subpackage 的 parent 不是一个 go package 
+
+问题：使用 glide 做 vendor 时，如果 subpackage 的 parent 不是一个 go package 时，glide update/install 无法正常工作
+
+具体：
+
+- 目录结构如下
+
+在 GitLab 上存在 group 的概念，这里 ops 是 base group ，hunter 是 sub-group ；
+
+```
+[#169#root@ubuntu-1604 /go/src/git.llsapp.com]$tree ops -L 2
+ops
+└── hunter
+    ├── hunter-agent
+    ├── hunter-demo-golang
+    ├── ocgrpc-wrapper
+    └── opencensus-go-exporter-hunter
+
+5 directories, 0 files
+[#170#root@ubuntu-1604 /go/src/git.llsapp.com]$
+```
+
+- glide 初始化后得到 glide.yaml
+
+```
+[#157#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide init
+[#158#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+import:
+- package: git.llsapp.com/ops/hunter      # 产生问题的地方
+  subpackages:
+  - ocgrpc-wrapper
+  - opencensus-go-exporter-hunter
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#159#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 获取依赖出错
+
+出错的原因：应该是将 git.llsapp.com/ops/hunter 作为 <project>/<repository> 进行获取时，发现其并不存在；可以推断，glide 在多级目录的处理上存在一些问题（该问题主要出现在 GitLab 上的原因就在于 GitLab 上存在 group 的概念，进而导致多层级目录）；
+
+issue related: [glide/issues#1006](https://github.com/Masterminds/glide/issues/1006), [glide/issues#946](https://github.com/Masterminds/glide/issues/946), [glide/issues#887](https://github.com/Masterminds/glide/issues/887)
+
+```
+[#174#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  --> Fetching git.llsapp.com/ops/hunter
+[INFO]  --> Fetching updates for github.com/golang/protobuf
+[INFO]  --> Fetching updates for go.opencensus.io
+[INFO]  --> Fetching updates for google.golang.org/grpc
+[INFO]  --> Fetching updates for golang.org/x/net
+Username for 'https://git.llsapp.com': fei.sun
+Password for 'https://fei.sun@git.llsapp.com':
+[WARN]  Unable to checkout git.llsapp.com/ops/hunter
+[ERROR] Update failed for git.llsapp.com/ops/hunter: Unable to get repository: Cloning into '/root/.glide/cache/src/https-git.llsapp.com-ops-hunter'...
+remote: The project you were looking for could not be found.
+fatal: repository 'https://git.llsapp.com/ops/hunter.git/' not found
+: exit status 128
+[ERROR] Failed to do initial checkout of config: Unable to get repository: Cloning into '/root/.glide/cache/src/https-git.llsapp.com-ops-hunter'...
+remote: The project you were looking for could not be found.
+fatal: repository 'https://git.llsapp.com/ops/hunter.git/' not found
+: exit status 128
+[#175#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 第一次调整 glide.yaml 的内容，错误依旧
+
+主要调整内容为在 package 中直接指定完整 path 
+
+```
+[#185#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+import:
+- package: git.llsapp.com/ops/hunter/ocgrpc-wrapper                 # 调整
+- package: git.llsapp.com/ops/hunter/opencensus-go-exporter-hunter  # 调整
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#186#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+
+[#186#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  --> Fetching git.llsapp.com/ops/hunter
+[INFO]  --> Fetching updates for github.com/golang/protobuf
+[INFO]  --> Fetching updates for go.opencensus.io
+[INFO]  --> Fetching updates for golang.org/x/net
+[INFO]  --> Fetching updates for google.golang.org/grpc
+Username for 'https://git.llsapp.com': fei.sun
+Password for 'https://fei.sun@git.llsapp.com':
+[WARN]  Unable to checkout git.llsapp.com/ops/hunter
+[ERROR] Update failed for git.llsapp.com/ops/hunter: Unable to get repository: Cloning into '/root/.glide/cache/src/https-git.llsapp.com-ops-hunter'...
+remote: The project you were looking for could not be found.
+fatal: repository 'https://git.llsapp.com/ops/hunter.git/' not found
+: exit status 128
+[ERROR] Failed to do initial checkout of config: Unable to get repository: Cloning into '/root/.glide/cache/src/https-git.llsapp.com-ops-hunter'...
+remote: The project you were looking for could not be found.
+fatal: repository 'https://git.llsapp.com/ops/hunter.git/' not found
+: exit status 128
+[#187#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 第二次调整 glide.yaml 的内容，错误依旧
+
+主要调整内容为在 package 中直接指定完整 path ，并指定 repo
+
+```
+[#193#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+import:
+- package: git.llsapp.com/ops/hunter/ocgrpc-wrapper                 # 调整
+  repo: git@git.llsapp.com:ops/hunter/ocgrpc-wrapper.git
+- package: git.llsapp.com/ops/hunter/opencensus-go-exporter-hunter  # 调整
+  repo: git@git.llsapp.com:ops/hunter/opencensus-go-exporter-hunter.git
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#194#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+
+
+[#194#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[ERROR] Failed to parse /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang/glide.yaml: Import git.llsapp.com/ops/hunter repeated with different Repository details
+[#195#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 第三次调整 glide.yaml 的内容，错误依旧
+
+主要调整内容为在 package 中直接指定完整 path ，但去掉了 ops 这段，并指定 repo
+
+```
+[#196#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+import:
+- package: git.llsapp.com/hunter/ocgrpc-wrapper
+  repo: git@git.llsapp.com:ops/hunter/ocgrpc-wrapper.git
+- package: git.llsapp.com/hunter/opencensus-go-exporter-hunter
+  repo: git@git.llsapp.com:ops/hunter/opencensus-go-exporter-hunter.git
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#197#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+
+
+[#197#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  --> Fetching updates for git.llsapp.com/hunter/ocgrpc-wrapper
+[INFO]  --> Fetching updates for git.llsapp.com/hunter/opencensus-go-exporter-hunter
+[INFO]  --> Fetching updates for github.com/golang/protobuf
+[INFO]  --> Fetching updates for go.opencensus.io
+[INFO]  --> Fetching updates for golang.org/x/net
+[INFO]  --> Fetching updates for google.golang.org/grpc
+[INFO]  --> Detected semantic version. Setting version for github.com/golang/protobuf to v1.2.0
+[INFO]  --> Detected semantic version. Setting version for go.opencensus.io to v0.17.0
+[INFO]  --> Detected semantic version. Setting version for google.golang.org/grpc to v1.15.0
+[INFO]  Resolving imports
+[INFO]  --> Fetching git.llsapp.com/ops/hunter
+Username for 'https://git.llsapp.com': fei.sun
+Password for 'https://fei.sun@git.llsapp.com':
+[WARN]  Unable to checkout git.llsapp.com/ops/hunter
+[ERROR] Error looking for git.llsapp.com/ops/hunter/ocgrpc-wrapper: Unable to get repository: Cloning into '/root/.glide/cache/src/https-git.llsapp.com-ops-hunter'...
+remote: The project you were looking for could not be found.
+fatal: repository 'https://git.llsapp.com/ops/hunter.git/' not found
+: exit status 128
+[WARN]  Unable to set version on git.llsapp.com/ops/hunter to . Err: Unable to retrieve checked out version: chdir /root/.glide/cache/src/https-git.llsapp.com-ops-hunter: no such file or directory
+[ERROR] Error scanning git.llsapp.com/ops/hunter/opencensus-go-exporter-hunter: cannot find package "." in:
+  /root/.glide/cache/src/https-git.llsapp.com-ops-hunter/opencensus-go-exporter-hunter
+[INFO]  --> Fetching updates for google.golang.org/genproto
+[INFO]  --> Fetching updates for golang.org/x/sys
+[INFO]  --> Fetching updates for golang.org/x/text
+[ERROR] Failed to retrieve a list of dependencies: Error resolving imports
+[#198#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 第四次调整 glide.yaml 的内容，成功！！！
+
+主要调整内容为将 import path 中的 ops 去掉
+
+```
+[#213#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$grep -irn "/hunter/" ./*
+./example/grpc_example/helloworld_client/main.go:9: wrapper "git.llsapp.com/hunter/ocgrpc-wrapper"
+./example/grpc_example/helloworld_client/main.go:10:  agent "git.llsapp.com/hunter/opencensus-go-exporter-hunter"
+./example/grpc_example/helloworld_server/main.go:14:  wrapper "git.llsapp.com/hunter/ocgrpc-wrapper"
+./example/grpc_example/helloworld_server/main.go:15:  agent "git.llsapp.com/hunter/opencensus-go-exporter-hunter"
+./example/local_example/main.go:10: agent "git.llsapp.com/hunter/opencensus-go-exporter-hunter"
+./example/callchain_example/callchain_server/main.go:16:  wrapper "git.llsapp.com/hunter/ocgrpc-wrapper"
+./example/callchain_example/callchain_server/main.go:17:  agent "git.llsapp.com/hunter/opencensus-go-exporter-hunter"
+./example/callchain_example/callchain_client/main.go:11:  wrapper "git.llsapp.com/hunter/ocgrpc-wrapper"
+./example/callchain_example/callchain_client/main.go:12:  agent "git.llsapp.com/hunter/opencensus-go-exporter-hunter"
+[#214#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+其他内容没有变化
+
+```
+[#217#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+import:
+- package: git.llsapp.com/hunter/ocgrpc-wrapper
+  repo: git@git.llsapp.com:ops/hunter/ocgrpc-wrapper.git
+- package: git.llsapp.com/hunter/opencensus-go-exporter-hunter
+  repo: git@git.llsapp.com:ops/hunter/opencensus-go-exporter-hunter.git
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#218#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+[#218#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  --> Fetching updates for git.llsapp.com/hunter/ocgrpc-wrapper
+[INFO]  --> Fetching updates for git.llsapp.com/hunter/opencensus-go-exporter-hunter
+[INFO]  --> Fetching updates for github.com/golang/protobuf
+[INFO]  --> Fetching updates for go.opencensus.io
+[INFO]  --> Fetching updates for golang.org/x/net
+[INFO]  --> Fetching updates for google.golang.org/grpc
+[INFO]  --> Detected semantic version. Setting version for github.com/golang/protobuf to v1.2.0
+[INFO]  --> Detected semantic version. Setting version for go.opencensus.io to v0.17.0
+[INFO]  --> Detected semantic version. Setting version for google.golang.org/grpc to v1.15.0
+[INFO]  Resolving imports
+[INFO]  --> Fetching updates for github.com/census-instrumentation/opencensus-proto
+[INFO]  --> Setting version for github.com/census-instrumentation/opencensus-proto to a7586552457eea9fa020ac37fab5f41d11e9270c.
+[INFO]  --> Fetching updates for google.golang.org/api
+[INFO]  --> Fetching updates for golang.org/x/sync
+[INFO]  --> Fetching updates for google.golang.org/genproto
+[INFO]  --> Fetching updates for golang.org/x/sys
+[INFO]  --> Fetching updates for golang.org/x/text
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  Setting references for remaining imports
+[INFO]  Exporting resolved dependencies...
+[INFO]  --> Exporting git.llsapp.com/hunter/ocgrpc-wrapper
+[INFO]  --> Exporting git.llsapp.com/hunter/opencensus-go-exporter-hunter
+[INFO]  --> Exporting github.com/golang/protobuf
+[INFO]  --> Exporting github.com/census-instrumentation/opencensus-proto
+[INFO]  --> Exporting go.opencensus.io
+[INFO]  --> Exporting google.golang.org/grpc
+[INFO]  --> Exporting golang.org/x/text
+[INFO]  --> Exporting golang.org/x/sys
+[INFO]  --> Exporting google.golang.org/genproto
+[INFO]  --> Exporting google.golang.org/api
+[INFO]  --> Exporting golang.org/x/net
+[INFO]  --> Exporting golang.org/x/sync
+[INFO]  Replacing existing vendor dependencies
+[INFO]  Project relies on 12 dependencies.
+[#219#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+[#219#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+[#219#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$ll vendor/
+total 28
+drwxr-xr-x  7 root root 4096 Sep 26 14:51 ./
+drwxr-xr-x  5 root root 4096 Sep 26 14:51 ../
+drwxr-xr-x  4 root root 4096 Sep 26 14:51 github.com/
+drwxr-xr-x  3 root root 4096 Sep 26 14:51 git.llsapp.com/
+drwxr-xr-x  3 root root 4096 Sep 26 14:51 golang.org/
+drwxr-xr-x  5 root root 4096 Sep 26 14:51 google.golang.org/
+drwxr-xr-x 13 root root 4096 Sep 26 14:51 go.opencensus.io/
+[#220#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
+
+- 第五次调整 glide.yaml 的内容，补充测试，失败；
+
+失败原因在于：无论 git.llsapp.com/hunter 还是 git.llsapp.com/ops/hunter 都不是真正的 repo ，因此没有 VCS 的东西；因为无法使用 repo 指定包含 VCS 内容的位置；而 subpackages 下又无法使用 repo 这个选项，故这种方式无法解决问题；
+
+```
+[#236#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$cat glide.yaml
+package: git.llsapp.com/ops/hunter/hunter-demo-golang
+license: MIT
+owners:
+- name: fei.sun
+  email: fei.sun@liulishuo.com
+  homepage: https://github.com/moooofly/
+import:
+- package: git.llsapp.com/hunter     # 将这里的 ops 去掉了
+  subpackages:
+  - ocgrpc-wrapper
+  - opencensus-go-exporter-hunter
+- package: github.com/golang/protobuf
+  version: ^1.2.0
+  subpackages:
+  - proto
+- package: go.opencensus.io
+  version: ^0.17.0
+  subpackages:
+  - plugin/ocgrpc
+  - stats/view
+  - trace
+  - zpages
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.15.0
+[#237#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+[#237#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$glide update
+[INFO]  Downloading dependencies. Please wait...
+[INFO]  --> Fetching git.llsapp.com/hunter
+[INFO]  --> Fetching updates for github.com/golang/protobuf
+[INFO]  --> Fetching updates for go.opencensus.io
+[INFO]  --> Fetching updates for golang.org/x/net
+[INFO]  --> Fetching updates for google.golang.org/grpc
+[WARN]  Unable to checkout git.llsapp.com/hunter
+[ERROR] Update failed for git.llsapp.com/hunter: Cannot detect VCS
+[ERROR] Failed to do initial checkout of config: Cannot detect VCS
+[#238#root@ubuntu-1604 /go/src/git.llsapp.com/ops/hunter/hunter-demo-golang]$
+```
 
 
 ## 参考
