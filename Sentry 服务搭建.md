@@ -233,8 +233,9 @@ docker run \
 
 **Requirements**
 
-- Docker 1.10.0+
-- Compose 1.6.0+ (optional)
+- Docker 1.10.0+ （详见《[Docker 安装](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20%E5%AE%89%E8%A3%85.md)》）
+- Compose 1.6.0+ (optional) （详见《[Docker Compose 安装](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20Compose%20%E5%AE%89%E8%A3%85.md)》）
+
 
 可以对 `docker-compose.yml` 进行定制化修改，以满足你的需求；如下指令为常规需要完成的步骤；
 
