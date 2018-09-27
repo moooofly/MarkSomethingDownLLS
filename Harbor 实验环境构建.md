@@ -24,11 +24,11 @@ Prerequisites
 
 ## Docker 安装
 
-详见《[Docker 安装](https://)》
+详见《[Docker 安装](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20%E5%AE%89%E8%A3%85.md)》
 
 ## Docker Compose 安装
 
-详见《[Docker Compose 安装](https://)》
+详见《[Docker Compose 安装](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20Compose%20%E5%AE%89%E8%A3%85.md)》
 
 ## Harbor 安装
 
