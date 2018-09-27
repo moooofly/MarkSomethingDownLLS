@@ -237,16 +237,18 @@ docker run \
 - Compose 1.6.0+ (optional) （详见《[Docker Compose 安装](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20Compose%20%E5%AE%89%E8%A3%85.md)》）
 
 
+
 可以对 `docker-compose.yml` 进行定制化修改，以满足你的需求；如下指令为常规需要完成的步骤；
 
-- `mkdir -p data/{sentry,postgres}` - Make our local database and sentry config directories. This directory is bind-mounted with postgres so you don't lose state!
-- `docker-compose run --rm web config generate-secret-key` - Generate a secret key. Add it to `docker-compose.yml` in base as `SENTRY_SECRET_KEY`.
-- `docker-compose run --rm web upgrade` - Build the database. Use the interactive prompts to create a user account.
-- `docker-compose up -d` - Lift all services (detached/background mode).
-- Access your instance at `localhost:9000`!
+- `git clone https://github.com/getsentry/onpremise.git`
+- `mkdir -p data/{sentry,postgres}` - 创建本地 database 和 sentry 配置目录；该目录会 bind-mounted 到 postgres 中，因此你不会 lose state ；
+- `docker-compose build` - build 并 tag 相应的 Docker services ；
+- `docker-compose run --rm web config generate-secret-key` - 生成 secret key ，之后将其添加到 `docker-compose.yml` 中的 base 段作为 `SENTRY_SECRET_KEY` 的值；
+- `docker-compose run --rm web upgrade` - 创建 database ；使用交互提示的方式创建 user account ；
+- `docker-compose up -d` - 拉起所有服务 (detached/background mode) ；
+- 通过 `localhost:9000` 访问你的实例；
 
 Note that as long as you have your database bind-mounted, you should be fine stopping and removing the containers without worry.
-
 
 按照 `docker-compose` 方式进行服务管理后，能够看到如下信息：
 
