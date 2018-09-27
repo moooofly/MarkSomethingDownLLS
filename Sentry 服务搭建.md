@@ -1,5 +1,13 @@
 # Sentry 服务搭建
 
+步骤：
+
+- Docker 安装
+- Docker Compose 安装
+- 基于 docker-compose 进行 Sentry 服务管理
+- 为 Sentry 增加反向代理 Nginx
+
+
 ## [Server Installation](https://docs.sentry.io/server/installation/)
 
 > Before running Sentry itself, there are a few minimum services that are required for Sentry to communicate with.
@@ -447,7 +455,9 @@ Sentry also needs a cron process:
 SENTRY_CONF=/etc/sentry sentry run cron
 ```
 
-### 为 Sentry 增加反向代理
+### 为 Sentry 增加反向代理 Nginx
+
+详见《[Sentry 之 Nginx 使用](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Sentry%20%E4%B9%8B%20Nginx%20%E4%BD%BF%E7%94%A8.md)》
 
 > By default, Sentry runs on port **9000**. Even if you change this, under normal conditions you won’t be able to bind to port **80**. To get around this (and to avoid running Sentry as a privileged user, which you shouldn’t), we recommend you setup a simple web proxy.
 
