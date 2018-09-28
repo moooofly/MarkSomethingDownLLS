@@ -6,6 +6,7 @@
 - Docker Compose 安装
 - 基于 docker-compose 进行 Sentry 服务管理
 - 为 Sentry 增加反向代理 Nginx
+- 调整 Nginx 配置
 
 
 ## [Server Installation](https://docs.sentry.io/server/installation/)
