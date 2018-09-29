@@ -2,7 +2,7 @@
 
 ## 目录
 
-- [GRPC client reconnect inside kubenetes](#gprc-client-reconnect-inside-kubenetes)
+- [GRPC client reconnect inside kubenetes](#grpc-client-reconnect-inside-kubenetes)
 - [grpc-go: get ClientConn to reconnect forever](#grpc-go-get-clientconn-to-reconnect-forever)
 - [stream auto reconnect](#stream-auto-reconnect)
 - [Best practices for reusing connections, concurrency](#best-practices-for-reusing-connections-concurrency)
