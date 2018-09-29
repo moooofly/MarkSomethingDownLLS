@@ -2,13 +2,27 @@
 
 ## 目录
 
-- [grpc-go: get ClientConn to reconnect forever](#grpc-go:-get-clientconn-to-reconnect-forever)
+- [GRPC client reconnect inside kubenetes](#gprc-client-reconnect-inside-kubenetes)
+- [grpc-go: get ClientConn to reconnect forever](#grpc-go-get-clientconn-to-reconnect-forever)
 - [stream auto reconnect](#stream-auto-reconnect)
 - [Best practices for reusing connections, concurrency](#best-practices-for-reusing-connections-concurrency)
 - [GRPC Connection Backoff Protocol](#grpc-connection-backoff-protocol)
 - [gRPC Connectivity Semantics and API](#grpc-connectivity-semantics-and-api)
 - [Auto-reconnect for Go clients?](#auto-reconnect-for-go-clients)
 
+## [GRPC client reconnect inside kubenetes](https://stackoverflow.com/questions/39277063/grpc-client-reconnect-inside-kubenetes)
+
+问题：
+
+> We define our micro service inside kubenetes Pods, do we need to instrument Grpc client reconnection if the service pod is restarting? When the pod restarts, the host name is not changed, but we cannot guarantee the IP address remains the same. So does the grpc client still be able to detect the new server to reconnect to?
+
+回答：
+
+> When the TCP connection is disconnected (because the old pod stopped) gRPC's channel will attempt to reconnect with exponential backoff. Each reconnect attempt implies resolving the DNS address, although it may not detect the new address immediately because of the TTL (time-to-live) of the old DNS entry. Also, I believe some implementations resolve the address when a failure is detected instead of before an attempt.
+>
+> This process happens naturally without your application doing anything, although it may experience RPC failures until the connection is re-established. Enabling "wait for ready" on an RPC would reduce the chances the RPC fails during this period of transition, although such an RPC generally implies you don't care about response latency.
+> 
+> If the DNS address is not (eventually) re-resolved, then that would be a bug and you should file an issue.
 
 ## [grpc-go: get ClientConn to reconnect forever](https://groups.google.com/forum/#!topic/grpc-io/OAdD-7tMJHY)
 
