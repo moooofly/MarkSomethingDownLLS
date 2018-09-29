@@ -43,10 +43,7 @@
 
 > Q: I wonder **how gRPC auto reconnect client and server** (if server is down and restart?) I try to build a **bi-directional stream**. When running server, and starting the client, the client starts sending random int to server. And I `Ctrl-C` the server side, the client shows: "xxx". Then I restart the server, but it seems client cannot rebuild the stream. Anyway to recover a stream?
 
-问题：
-
-- 当使用双向流时
-- 先确保 client 和 server 正常通信，然后停止 server ，client 侧开始报错；之后重启 server ，但是 client 并不会重建 stream ；
+问题：在使用双向流的场景中，先确保 client 和 server 正常通信，然后停止 server ，client 侧开始报错；之后重启 server ，但是 client 并不会重建 stream ；
 
 > A: When you receive the error on the client-side, the stream is dead. You should simply create a new RPC using the same Stub/Channel. **The Channel will automatically create a new connection to the server, but it can't re-establish any streams**.
 
