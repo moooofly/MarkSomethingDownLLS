@@ -1,5 +1,17 @@
 # Docker 常见问题汇总
 
+## 内容目录
+
+- [/var/run/docker.sock](#varrundockersock)
+- [--privileged 特权容器](#--privileged-特权容器)
+- [alpine 是什么](#alpine-是什么)
+- [parent image v.s. base image](#parent-image-vs-base-image)
+- [What are Docker `<none>:<none>` images?](what-are-docker--images)
+- [镜像源变更](#镜像源变更)
+- [DNS 变更](#dns-变更)
+- [时区变更](#时区变更)
+
+
 ## /var/run/docker.sock
 
 - It’s the unix socket the Docker daemon listens on by default and it can be used to communicate with the daemon from within a container.
@@ -108,7 +120,7 @@ none on /home/test2 type aufs (rw,relatime,si=65f2e9cc676bf3bf,dio,dirperm1)
 - https://blog.csdn.net/halcyonbaby/article/details/43499409
 
 
-## alpine
+## alpine 是什么
 
 - A minimal Docker image based on Alpine Linux with a complete package index and only 5 MB in size! 
 - Alpine 操作系统是一个面向安全的轻型 Linux 发行版。它不同于通常 Linux 发行版，Alpine 采用了 musl libc 和 busybox 以减小系统的体积和运行时资源消耗，但功能上比 busybox 又完善的多，因此得到开源社区越来越多的青睐。在保持瘦身的同时，Alpine 还提供了自己的包管理工具 apk，可以通过 https://pkgs.alpinelinux.org/packages 网站上查询包信息，也可以直接通过 apk 命令直接查询和安装各种软件。
@@ -138,7 +150,7 @@ A **base image** either has no `FROM` line in its Dockerfile, or has `FROM scrat
 - [How to build a base image from scratch?](https://forums.docker.com/t/how-to-build-a-base-image-from-scratch/34928)
 
 
-## What are Docker <none>:<none> images?
+## What are Docker `<none>:<none>` images?
 
 Ref: https://www.projectatomic.io/blog/2015/07/what-are-docker-none-none-images/
 
