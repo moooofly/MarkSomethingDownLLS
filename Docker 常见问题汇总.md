@@ -2,7 +2,10 @@
 
 ## 内容目录
 
-- [Pulling an image](#pulling-an-image)
+- [Containerd Architecture](#containerd-architecture)
+- [Image Formats](#image-formats)
+- [Starting a Container](#starting-a-container)
+- [Pulling an Image](#pulling-an-image)
 - [What is a container manifest](#what-is-a-container-manifest)
 - [/var/run/docker.sock](#varrundockersock)
 - [--privileged 特权容器](#--privileged-特权容器)
@@ -13,6 +16,18 @@
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
 
+## Containerd Architecture
+
+![Containd Architecture - 1]()
+
+![Containd Architecture - 2]()
+
+## Image Formats
+
+![Image Formats - 1]()
+
+![Image Formats - 2]()
+
 ## Starting a Container
 
 - Initialize a root filesystem (RootFS) from snapshot
@@ -20,6 +35,7 @@
 - Use metadata from container and snapshotter to specify config and mounts
 - Start process via the task service
 
+![Starting a Contrainer]()
 
 ## Pulling an Image
 
@@ -28,6 +44,7 @@
 - Unpack layers into snapshots
 - Register mappings between manifests and constituent resources
 
+![Pulling an Image]()
 
 ## What is a container manifest
 
