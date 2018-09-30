@@ -2,14 +2,83 @@
 
 ## 内容目录
 
+- [Pulling an image](#pulling-an-image)
+- [What is a container manifest](#what-is-a-container-manifest)
 - [/var/run/docker.sock](#varrundockersock)
 - [--privileged 特权容器](#--privileged-特权容器)
 - [alpine 是什么](#alpine-是什么)
 - [parent image v.s. base image](#parent-image-vs-base-image)
-- [What are Docker `<none>:<none>` images?](what-are-docker--images)
+- [What are Docker `<none>:<none>` images?](#what-are-docker-nonenone-images)
 - [镜像源变更](#镜像源变更)
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
+
+## Starting a Container
+
+- Initialize a root filesystem (RootFS) from snapshot
+- Setup OCI configuration (config.json)
+- Use metadata from container and snapshotter to specify config and mounts
+- Start process via the task service
+
+
+## Pulling an Image
+
+- Resolve manifest or index (manifest list)
+- Download all the resources referenced by the manifest
+- Unpack layers into snapshots
+- Register mappings between manifests and constituent resources
+
+
+## What is a container manifest
+
+Ref: https://stackoverflow.com/questions/47006220/what-is-a-container-manifest
+
+> **An `image` is a combination of a JSON manifest and individual layer files**. The process of pulling an image centers around retrieving these two components. 
+
+image 由 JSON manifest 和不同的 layer files 构成；镜像拉取行为正是围绕着这两部分内容展开的；
+
+> So when you pull an Image file:
+> 
+> - Get Manifest:
+> ```
+> GET /v2/<name>/manifests/<reference>
+> ```
+>
+> - When the manifest is in hand, the client must verify the signature to ensure the names and layers are valid.
+>
+> - Then the client will then use the digests to download the individual layers. Layers are stored in as blobs in the V2 registry API, keyed by their digest.
+
+因此，当你拉取镜像时：
+
+- 首先，获取 Manifest ；
+- 其次，验证 signature ，以便确认 names 和 layers 的有效性；
+- 最后，基于 digests 下载不同的 layers ；
+- （之后就是运行容器了）
+
+在 V2 registry API 中，Layers 是以 blobs 的形态进行保存的，通过 blobs 对应的 digest 进行索引；
+
+
+> The **manifest** types are effectively the JSON-represented description of a named/tagged image. This description (manifest) is meant for consumption by a container runtime, like the Docker engine.
+
+manifest 事实上就是基于 JSON 方式描述的 named/tagged image ；这个概念主要被 Docker engine 所使用；
+
+> Any registry or runtime that claims to have Docker distribution v2 API/v2.2 image specification support will be interacting with the various manifest types to find out:
+>
+> - what actual filesystem content (layers) will be needed to build the root filesystem for the container, and..
+> - any specific image configuration that is necessary to know how to run a container using this image. For example, information like what command to run when starting the container (as probably represented in the `Dockerfile` that was used to build the image).
+
+任何 registry 或 runtime 只要声称支持 Docker distribution v2 API/v2.2 image specification ，也就表明支持了如下 manifest 类型：
+
+- 用于构建容器所需的 root filesystem 的、真实的文件系统内容（layers）；
+- 任何需要了解的、基于该 image 的容器如何运行的、具体 image 配置；
+
+
+> As a prior answer mentioned, a client (such as the `docker pull` implementation) talking to a registry will interact over the Docker v2 API to first fetch the manifest for a specific image/tag and then determine what to download in addition to be able to run a container based on this image. The v2 manifest format does not have signatures encoded into it, but external verification using tools like a [`notary` server](https://github.com/theupdateframework/notary) can be used to validate external signatures on the same "blob"/hash of content for full cryptographic trust. Docker calls this "**Docker Content Trust**" but does not require it when talking to a registry, nor is it part of the API flow when talking to an image registry.
+
+> One additional detail about manifests in the v2.2 spec: there is not only a **standard manifest type**, but also a **manifest list type** which allows registries to represent support for multiple platforms (CPU or operating system variations) under a single "image:tag" reference. The manifest list simply has a list of platform entries with a redirector to an existing manifest so that an engine can go retrieve the correct components for that specific platform/architecture combination. **In DockerHub today, all official images are now actually manifest lists, allowing for many platforms to be supported using the same image name:tag combination**. I have a tool which can query entries in a registry and show whether they are manifest lists and also dump the contents of a manifest--both manifest lists and "regular" manifests. You can read more at the [manifest-tool](https://github.com/estesp/manifest-tool) GitHub repository.
+
+
+
 
 
 ## /var/run/docker.sock
