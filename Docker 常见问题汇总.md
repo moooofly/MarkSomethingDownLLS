@@ -7,6 +7,7 @@
 - [Starting a Container](#starting-a-container)
 - [Pulling an Image](#pulling-an-image)
 - [What is a container manifest](#what-is-a-container-manifest)
+- [What are Docker image layers?](#)
 - [/var/run/docker.sock](#varrundockersock)
 - [--privileged 特权容器](#--privileged-特权容器)
 - [alpine 是什么](#alpine-是什么)
@@ -15,6 +16,7 @@
 - [镜像源变更](#镜像源变更)
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
+
 
 ## Containerd Architecture
 
@@ -95,7 +97,23 @@ manifest 事实上就是基于 JSON 方式描述的 named/tagged image ；这个
 > One additional detail about manifests in the v2.2 spec: there is not only a **standard manifest type**, but also a **manifest list type** which allows registries to represent support for multiple platforms (CPU or operating system variations) under a single "image:tag" reference. The manifest list simply has a list of platform entries with a redirector to an existing manifest so that an engine can go retrieve the correct components for that specific platform/architecture combination. **In DockerHub today, all official images are now actually manifest lists, allowing for many platforms to be supported using the same image name:tag combination**. I have a tool which can query entries in a registry and show whether they are manifest lists and also dump the contents of a manifest--both manifest lists and "regular" manifests. You can read more at the [manifest-tool](https://github.com/estesp/manifest-tool) GitHub repository.
 
 
+## What are Docker image “layers”?
 
+From the official Docker docs:
+
+- Each instruction in a Dockerfile creates a layer in the image. When you change the Dockerfile and rebuild the image, only those layers which have changed are rebuilt. ([here](https://docs.docker.com/engine/docker-overview/#docker-objects)) 
+- Basically, a **layer**, or **image layer** is a change on an image, or an intermediate image. Every command you specify (`FROM`, `RUN`, `COPY`, etc.) in your Dockerfile causes the previous image to change, thus creating a new layer. You can think of it as staging changes when you're using git: You add a file's change, then another one, then another one...
+- The concept of layers comes in handy at the time of building images. Because layers are intermediate images, if you make a change to your Dockerfile, docker will build only the layer that was changed and the ones after that. This is called **layer caching**.
+- [Since Docker v1.10](https://blog.docker.com/2016/01/docker-1-10-rc/), with introduction of the **content addressable storage**, the notion of 'layer' became quite different. Layers have no notion of an image or of belonging to an image, they become merely collections of files and directories that can be shared across images. Layers and images became separated. ([here](https://windsock.io/explaining-docker-image-ids/))
+- Images are composed of layers. Each layer is a set of filesystem changes. Layers do not have configuration metadata such as environment variables or default arguments - these are properties of the image as a whole rather than any particular layer. ([here](https://github.com/moby/moby/blob/master/image/spec/v1.2.md))
+- A Docker image is built up from a series of layers. Each layer represents an instruction in the image’s Dockerfile. Each layer except the very last one is read-only. 
+- Each layer is only a set of differences from the layer before it. The layers are stacked on top of each other. When you create a new container, you add a new writable layer on top of the underlying layers. This layer is often called the “**container layer**”. All changes made to the running container, such as writing new files, modifying existing files, and deleting files, are written to this thin writable container layer. 
+- A **storage driver** handles the details about the way these layers interact with each other.
+- Docker uses storage drivers to manage the contents of the **image layers** and the writable **container layer**. Each storage driver handles the implementation differently, but all drivers use stackable image layers and the copy-on-write (CoW) strategy.
+- **The major difference between a container and an image is the top writable layer**. All writes to the container that add new or modify existing data are stored in this writable layer. When the container is deleted, the writable layer is also deleted. The underlying image remains unchanged.
+
+
+![](https://docs.docker.com/storage/storagedriver/images/container-layers.jpg)
 
 
 ## /var/run/docker.sock
