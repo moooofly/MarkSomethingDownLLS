@@ -2,7 +2,11 @@
 
 ## 内容目录
 
-- [Containerd Architecture](#containerd-architecture)
+- [Container Runtime](#container-runtime)
+- [Containerd](#containerd-architecture)
+    - [Containerd 和 Docker 之间的关系](#containerd-和-docker-之间的关系)
+    - [Containerd 和 OCI 和 runC 之间的关系](#containerd-和-oci-和-runc-之间的关系)
+    - [Containerd 和 Container orchestration systems 如 Kubernetes 和 Mesos 之间的关系](#containerd-和-container-orchestration-systems-如-kubernetes-和-mesos-之间的关系)
 - [Image Formats](#image-formats)
 - [Starting a Container](#starting-a-container)
 - [Pulling an Image](#pulling-an-image)
@@ -18,11 +22,96 @@
 - [时区变更](#时区变更)
 
 
-## Containerd Architecture
+## Container Runtime
+
+- containerd: An open and reliable container runtime
+
+## Containerd
 
 ![Containd Architecture - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Containerd%20Architecture%20-%201.png)
 
 ![Containd Architecture - 2](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Containerd%20Architecture%20-%202.png)
+
+> containerd is an industry-standard container runtime with an emphasis on simplicity, robustness and portability. It is available as a daemon for Linux and Windows, which can manage the complete container lifecycle of its host system: image transfer and storage, container execution and supervision, low-level storage and network attachments, etc.
+
+- containerd 是工业级 container runtime ；
+- 用于管理主机系统中的 container 的完整 lifecycle ，包括：镜像传输、存储、容器执行和监管、low-level 存储，以及 network attachments 等；
+
+> containerd is designed to be embedded into a larger system, rather than being used directly by developers or end-users.
+
+containerd 被设计为可以直接嵌入到大型系统中方式来使用，而不是直接被开发者或端用户直接使用；
+
+> containerd includes a daemon exposing gRPC API over a local UNIX socket. The API is a low-level one designed for higher layers to wrap and extend. It also includes a barebone CLI (ctr) designed specifically for development and debugging purpose. It uses runC to run containers according to the [OCI specification](https://www.opencontainers.org/about). The code can be found on [GitHub](https://github.com/containerd/containerd), and here are the [contribution guidelines](https://github.com/containerd/containerd/blob/master/CONTRIBUTING.md).
+
+- containerd 实现中包含了一个在 local UNIX socket 上暴露 gRPC API 的 daemon 程序；
+- 该 API 提供了偏底层功能，可供高层封装和扩展；
+- containerd 实现中还包含了一个 CLI 工具（ctr）专门用于开发和调试目的；
+- containerd 根据 OCI 规范，基于 runC 运行 containers ；
+
+> containerd is based on the Docker Engine’s core container runtime to benefit from its maturity and existing contributors.
+
+containerd 是基于 Docker Engine 的 container runtime 开发起来的；
+
+> containerd is a daemon born from extracting the container execution subset of the Docker Engine, and is used internally by Docker since the 1.11 release. containerd versions prior to v1.0.x were used in Docker 17.10 and earlier (see Docker version release notes), and Docker 17.12 is the first release to use containerd v1.0.0.
+
+- containerd 基于 Docker Engine 的 container execution 代码子集创建；
+- 从 Docker 1.11 开始被 Docker 内部使用；
+- 在 Docker 17.10 and earlier 时代，使用的 containerd 版本低于 v1.0.x ；
+- 从 Docker 17.12 开始，使用的是 containerd v1.0.0 ；
+
+![containerd - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20-%201.png)
+
+### Containerd 和 Docker 之间的关系
+
+> Docker is a complete platform and programming environment for containerized applications. containerd is one of dozens of specialized components integrated into Docker. Developers and IT professionals looking to build, ship and run containerized applications should continue to use Docker. Operators and integrators looking for specialized components to swap into their platform should consider containerd.
+
+- Docker 是一个针对容器化应用提供的完整平台和编程环境；
+- containerd 是集成到 Docker 中的、具有特定功能的、众多组件中的一个；
+
+![containerd in docker - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20in%20docker%20-%201.png)
+
+> containerd 0.2.4 used in Docker 1.12 covers only container execution and process management.
+
+![containerd in docker - 2](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20in%20docker%20-%202.png)
+
+> containerd’s roadmap is to refactor the Docker Engine codebase to extract more of its logic for distribution, networking and storage on a single host into a reusable component that Docker will use, and that can be used by other container orchestration projects or hosted container services.
+
+containerd 的目标是重构（提取） Docker Engine 代码中的平台通用逻辑，以便得到一个 Docker 可重用组件，同时可以被其他 container 编排项目或 hosted container services 所使用；
+
+![containerd in docker - 3](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20in%20docker%20-%203.png)
+
+### Containerd 和 OCI 和 runC 之间的关系
+
+> Docker donated the OCI specification to the Linux Foundation in 2015, along with a reference implementation called runc. containerd integrates OCI/runc into a feature-complete, production-ready core container runtime. runc is a component of containerd, the executor for containers. containerd has a wider scope than just executing containers: downloading container images, managing storage and network interfaces, calling runc with the right parameters to run containers. containerd fully leverages the Open Container Initiative’s (OCI) runtime, image format specifications and OCI reference implementation (runc) and will pursue OCI certification when it is available. Because of its massive adoption, containerd is the industry standard for implementing OCI.
+
+- Docker 将 OCI 标准贡献给了 Linux Foundation ，同时还有一个 OCI 标准的参考实现，即 runC ；
+- containerd 集成 OCI/runc 后，成为了一个特性完整、生产级别的 core container runtime ；
+- runc 是 containerd 其中的一个组件，即 containers 的执行器；
+- containerd 的功能不仅仅限于 containers 的执行，还包括：
+    - 下载 container images 
+    - 管理 storage 和 network interfaces
+    - 调用 runc 来运行 containers
+- containerd 充分利用了
+    - OCI 的 runtime
+    - image format specifications
+    - OCI 的参考实现 runc
+- 由于 containerd 被大量采用，已经成为了 OCI 实现的工业标准；
+
+
+### Containerd 和 Container orchestration systems 如 Kubernetes 和 Mesos 之间的关系
+
+> Kubernetes today uses Docker directly. In a future version Kubernetes can implement container support in the Kubelet by implementing it’s Container Runtime Interface using containerd. Mesos and other orchestration engines can leverage containerd for core container runtime functionality as well.
+
+- 当前 Kubernetes 是直接使用 Docker 的（这里有点过时了，应该注明版本），将来版本的 Kubernetes 会在 Kubelet 实现 container 支持，即通过 CRI 来使用 containerd ；
+- Mesos 和其他编排引擎同样也能利用 containerd 作为 container runtime ；
+
+![containerd with container orchestration systems](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20container%20orchestration%20systems.png)
+
+Ref: 
+
+- [containerd/containerd](https://github.com/containerd/containerd)
+- https://containerd.io/
+
 
 ## Image Formats
 
