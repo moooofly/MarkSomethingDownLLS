@@ -2,10 +2,10 @@
 
 ## 内容目录
 
-- [/usr/bin/ 下的各种 docker 命令以及相互关系](#)
+- [/usr/bin/ 下各种 docker 命令之间的关系](#usrbin-下各种-docker-命令之间的关系)
 - [docker-container-shim](#docker-container-shim)
 - [docker-containerd-ctr](#docker-containerd-ctr)
-- [不同版本 docker 进程对比示例](#不同版本-docker-进程对比示例)
+- [不同 Docker 版本生成的容器进程树对比](#不同-Docker-版本生成的容器进程树对比)
 - [Docker Engine](#docker-engine)
 - [Pause Container](#pause-container)
 - [Container Runtime](#container-runtime)
@@ -38,7 +38,7 @@
 - [时区变更](#时区变更)
 
 
-## /usr/bin/ 下的各种 docker 命令以及相互关系
+## /usr/bin/ 下各种 docker 命令之间的关系
 
 ```
 [#64#root@ubuntu-1604 ~]$docker --version
@@ -97,7 +97,7 @@ Ref:
 docker-containerd-ctr --address unix:///var/run/docker/libcontainerd/docker-containerd.sock containers | grep 67292a357097
 ```
 
-## 不同版本 docker 进程对比示例
+## 不同 Docker 版本生成的容器进程树对比
 
 ### 17.09.0-ce
 
@@ -267,7 +267,7 @@ Server:
 [#15#root@ubuntu-1604 /opt/apps/harbor]$
 ```
 
-简化后的结构
+完整进程树信息
 
 ```sh
     1  1165  1165  1165 ?           -1 Ssl      0   6:40 /usr/bin/dockerd -H fd://
@@ -309,6 +309,8 @@ Server:
  1165  5484  1165  1165 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.9 -container-port 80
 ```
 
+简化后的结构
+
 ```sh
 /usr/bin/dockerd -H fd://
  \_ docker-containerd --config /var/run/docker/containerd/containerd.toml
@@ -337,6 +339,34 @@ Server:
  \_ /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1514 -container-ip 172.18.0.2 -container-port 10514
  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 4443 -container-ip 172.18.0.9 -container-port 4443                                                                                                                                                              \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 443 -container-ip 172.18.0.9 -container-port 443
  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.9 -container-port 80
+```
+
+```
+[#65#root@ubuntu-1604 ~]$docker ps
+CONTAINER ID        IMAGE                                  COMMAND                  CREATED             STATUS                 PORTS                                                              NAMES
+40b7e9636454        vmware/harbor-jobservice:v1.5.0        "/harbor/start.sh"       2 hours ago         Up 2 hours                                                                                harbor-jobservice
+4df3d3e341b4        vmware/nginx-photon:v1.5.0             "nginx -g 'daemon of…"   2 hours ago         Up 2 hours (healthy)   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp   nginx
+bed8d048a618        vmware/harbor-ui:v1.5.0                "/harbor/start.sh"       2 hours ago         Up 2 hours (healthy)                                                                      harbor-ui
+ea0ca3ad857d        vmware/registry-photon:v2.6.2-v1.5.0   "/entrypoint.sh serv…"   2 hours ago         Up 2 hours (healthy)   5000/tcp                                                           registry
+8c348b497878        vmware/redis-photon:v1.5.0             "docker-entrypoint.s…"   2 hours ago         Up 2 hours             6379/tcp                                                           redis
+6ca0856685a7        vmware/harbor-adminserver:v1.5.0       "/harbor/start.sh"       2 hours ago         Up 2 hours (healthy)                                                                      harbor-adminserver
+2190541c1c0f        vmware/harbor-db:v1.5.0                "/usr/local/bin/dock…"   2 hours ago         Up 2 hours (healthy)   3306/tcp                                                           harbor-db
+67b25c6b3a33        vmware/harbor-log:v1.5.0               "/bin/sh -c /usr/loc…"   2 hours ago         Up 2 hours (healthy)   127.0.0.1:1514->10514/tcp                                          harbor-log
+[#66#root@ubuntu-1604 ~]$
+
+
+[#67#root@ubuntu-1604 /opt/apps/harbor]$docker-compose ps
+       Name                     Command                  State                                    Ports
+-------------------------------------------------------------------------------------------------------------------------------------
+harbor-adminserver   /harbor/start.sh                 Up (healthy)
+harbor-db            /usr/local/bin/docker-entr ...   Up (healthy)   3306/tcp
+harbor-jobservice    /harbor/start.sh                 Up
+harbor-log           /bin/sh -c /usr/local/bin/ ...   Up (healthy)   127.0.0.1:1514->10514/tcp
+harbor-ui            /harbor/start.sh                 Up (healthy)
+nginx                nginx -g daemon off;             Up (healthy)   0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp, 0.0.0.0:80->80/tcp
+redis                docker-entrypoint.sh redis ...   Up             6379/tcp
+registry             /entrypoint.sh serve /etc/ ...   Up (healthy)   5000/tcp
+[#68#root@ubuntu-1604 /opt/apps/harbor]$
 ```
 
 ## Docker Engine
