@@ -2,6 +2,7 @@
 
 ## 内容目录
 
+- [Docker Engine](#docker-engine)
 - [Pause Container](#pause-container)
 - [Container Runtime](#container-runtime)
     - [CRI](#cri)
@@ -30,6 +31,26 @@
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
 
+
+## Docker Engine
+
+Ref: https://docs.docker.com/engine/docker-overview/#docker-
+
+Docker Engine is a client-server application with these major components:
+
+- A **server** which is a type of long-running program called a daemon process (the `dockerd` command).
+- A **REST API** which specifies interfaces that programs can use to talk to the daemon and instruct it what to do.
+- A command line interface (CLI) client (the `docker` command).
+
+The CLI uses the Docker REST API to control or interact with the Docker daemon through scripting or direct CLI commands. Many other Docker applications use the underlying API and CLI.
+
+The daemon creates and manages Docker objects, such as images, containers, networks, and volumes.
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/docker%20engine%20major%20components.png)
+
+Docker Engine's all components
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Docker%20Engine%20Components.png)
 
 ## Pause Container
 
@@ -197,9 +218,6 @@ See the architecture figure below showing the same containerd being used by Dock
 
 ![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20Docker%20Engine%20and%20kubelet.png)
 
-Docker Engine components
-
-![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Docker%20Engine%20Components.png)
 
 ### Summary
 
