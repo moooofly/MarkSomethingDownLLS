@@ -9,6 +9,8 @@
     - [Container Runtime CLI](#container-runtime-cli)
 - [Kubernetes Node Performance Benchmark](#kubernetes-node-performance-benchmark)
 - [Containerd](#containerd)
+    - [为什么需要 Containerd](#为什么需要-containerd)
+    - [Containerd 提供了什么](#containerd-提供了什么)
     - [Containerd 和 Docker 之间的关系](#containerd-和-docker-之间的关系)
     - [Containerd 和 OCI 和 runC 之间的关系](#containerd-和-oci-和-runc-之间的关系)
     - [Containerd 和 Container Orchestration Systems 之间的关系](#containerd-和-container-orchestration-systems-之间的关系)
@@ -58,7 +60,7 @@ https://www.ianlewis.org/en/almighty-pause-container
 
 ## Container Runtime
 
-- containerd: An open and reliable container runtime
+- containerd: An open and reliable container runtime.
 - "When using Docker as the container runtime for Kubernetes" -- 说明在粗粒度上，可以认为 Docker 就是一种 container runtime ；
 - With [containerd/cri](https://github.com/containerd/cri), you could run Kubernetes using containerd as the container runtime. 
 
@@ -69,6 +71,7 @@ https://www.ianlewis.org/en/almighty-pause-container
 - The containerd 1.1 integration uses the CRI plugin built into containerd.
 - The Docker 18.03 CE integration uses the `dockershim`.
 - The containerd CRI plugin is an open source github project within containerd https://github.com/containerd/cri.
+- Containerd is used by Docker, Kubernetes CRI, and a few other projects. 
 
 ### Container Runtime CLI
 
@@ -127,6 +130,25 @@ containerd 是基于 Docker Engine 的 container runtime 开发起来的；
 
 ![containerd - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20-%201.png)
 
+
+### 为什么需要 Containerd
+
+containerd is a container daemon. It was originally built as an integration point for OCI runtimes like `runc` but over the past six months it has added a lot of functionality to bring it up to par with the needs of modern container platforms like Docker and Kubernetes.
+
+Since there is no such thing as Linux containers in the kernelspace, containers are various kernel features tied together, when you are building a large platform or distributed system **you want an abstraction layer between your management code and the syscalls and duct tape of features to run a container**. That is where containerd lives. It provides a client layer of types that platforms can build on top of without ever having to drop down to the kernel level.  It’s so much nicer towork with Container, Task, and Snapshot types than it is to manage calls to `clone()` or `mount()`.
+
+Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes. 
+
+### Containerd 提供了什么
+
+So what do you actually get using containerd? 
+
+- You get push and pull functionality as well as image management.
+- You get container lifecycle APIs to create, execute, and manage containers and their tasks.
+- An entire API dedicated to snapshot management.
+
+Basically everything that you need to build a container platform without having to deal with the underlying OS details.  
+
 ### Containerd 和 Docker 之间的关系
 
 > Docker is a complete platform and programming environment for containerized applications. containerd is one of dozens of specialized components integrated into Docker. Developers and IT professionals looking to build, ship and run containerized applications should continue to use Docker. Operators and integrators looking for specialized components to swap into their platform should consider containerd.
@@ -135,6 +157,10 @@ containerd 是基于 Docker Engine 的 container runtime 开发起来的；
 - containerd 是集成到 Docker 中的、具有特定功能的、众多组件中的一个；
 
 ![containerd in docker - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20in%20docker%20-%201.png)
+
+对比
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20is%20a%20kind%20of%20container%20runtime.png)
 
 > containerd 0.2.4 used in Docker 1.12 covers only container execution and process management.
 
@@ -172,6 +198,10 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 - Mesos 和其他编排引擎同样也能利用 containerd 作为 container runtime ；
 
 ![containerd with container orchestration systems](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20container%20orchestration%20systems.png)
+
+对比下图
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20is%20a%20kind%20of%20container%20runtime.png)
 
 ### The Kubernetes containerd Integration Architecture
 
@@ -241,6 +271,7 @@ Ref:
 - https://containerd.io/
 - [Kubernetes Containerd Integration Goes GA](https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/)
 - [Docker Engine Sparked the Containerization Movement](https://www.docker.com/products/docker-engine)
+- [What is containerd runtime](https://blog.docker.com/2017/08/what-is-containerd-runtime/)
 
 
 ## Image Formats
