@@ -10,11 +10,12 @@
 - [Containerd](#containerd)
     - [Containerd 和 Docker 之间的关系](#containerd-和-docker-之间的关系)
     - [Containerd 和 OCI 和 runC 之间的关系](#containerd-和-oci-和-runc-之间的关系)
-    - [Containerd 和 Container orchestration systems 之间的关系](#containerd-和-container-orchestration-systems-之间的关系)
+    - [Containerd 和 Container Orchestration Systems 之间的关系](#containerd-和-container-orchestration-systems-之间的关系)
     - [The Kubernetes containerd Integration Architecture](#the-kubernetes-containerd-integration-architecture)
     - [Performance Improvement](#performance-improvement)
     - [Containerd 和 Docker Engine 和 Kubernetes 的关系](#containerd-和-docker-engine-和-kubernetes-的关系)
     - [Summary](#summary)
+    - [Setup a Kubernetes cluster using containerd as the container runtime](#setup-a-kubernetes-cluster-using-containerd-as-the-container-runtime)
 - [Image Formats](#image-formats)
 - [Starting a Container](#starting-a-container)
 - [Pulling an Image](#pulling-an-image)
@@ -92,7 +93,7 @@ containerd 被设计为直接嵌入到大型系统使用的方式，而不是直
 - containerd 实现中还包含了一个 CLI 工具（ctr）专门用于开发和调试目的；
 - containerd 根据 OCI 规范，基于 runC 运行 containers ；
 
-> containerd is based on the Docker Engine’s core container runtime to benefit from its maturity and existing contributors.
+> containerd is based on the Docker Engine’s core container runtime to benefit from its maturity and existing contributors. (containerd is the core container runtime that forms the foundation for Docker Engine.)
 
 containerd 是基于 Docker Engine 的 container runtime 开发起来的；
 
@@ -142,11 +143,11 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 - 由于 containerd 被大量采用，已经成为了 OCI 实现的工业标准；
 
 
-### Containerd 和 Container orchestration systems 之间的关系
+### Containerd 和 Container Orchestration Systems 之间的关系
 
-> Kubernetes today uses Docker directly. In a future version Kubernetes can implement container support in the Kubelet by implementing it’s Container Runtime Interface using containerd. Mesos and other orchestration engines can leverage containerd for core container runtime functionality as well.
+> Kubernetes today uses Docker directly. In a future version Kubernetes can implement container support in the `Kubelet` by implementing it’s Container Runtime Interface using containerd. Mesos and other orchestration engines can leverage containerd for core container runtime functionality as well.
 
-- 当前 Kubernetes 是直接使用 Docker 的（这里有点过时了，应该注明版本），将来版本的 Kubernetes 会在 Kubelet 中实现 container 支持，即通过 CRI 来使用 containerd ；
+- 当前 Kubernetes 是直接使用 Docker 的（这里有点过时了，应该注明版本），将来版本的 Kubernetes 会在 Kubelet 中实现 container 支持，即通过 CRI 方式使用 containerd ；
 - Mesos 和其他编排引擎同样也能利用 containerd 作为 container runtime ；
 
 ![containerd with container orchestration systems](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20container%20orchestration%20systems.png)
@@ -189,10 +190,16 @@ Performance improvement between containerd 1.1 and Docker 18.03 CE was optimized
 - A containerd **namespace mechanism** is employed to guarantee that Kubelet and Docker Engine won’t see or have access to containers and images created by each other. This makes sure they won’t interfere with each other. This also means that:
     - Users won’t see Kubernetes created containers with the `docker ps` command. Please use `crictl ps` instead. And vice versa, users won’t see Docker CLI created containers in Kubernetes or with `crictl ps` command. The `crictl create` and `crictl runp` commands are only for troubleshooting. **Manually starting pod or container with `crictl` on production nodes is not recommended**.
     - Users won’t see Kubernetes pulled images with the `docker images` command. Please use the `crictl images` command instead. And vice versa, Kubernetes won’t see images created by `docker pull``, docker load` or `docker build` commands. Please use the `crictl pull` command instead, and [ctr](https://github.com/containerd/containerd/blob/master/docs/man/ctr.1.md) `cri load` if you have to load an image.
+- With containerd integrated in Docker Engine, you get the next generation of runtime components, with more performance and configurability, integrated in a portable application workflow devs and ops know well, usable for any type of use case (single server, orchestrated runtime, CI/CD, IoT, etc.)
+- containerd 1.1 implements Kubernetes Container Runtime Interface (CRI), so it can be used directly by Kubernetes, as well as Docker Engine.
 
 See the architecture figure below showing the same containerd being used by Docker Engine and Kubelet:
 
 ![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20Docker%20Engine%20and%20kubelet.png)
+
+Docker Engine components
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Docker%20Engine%20Components.png)
 
 ### Summary
 
