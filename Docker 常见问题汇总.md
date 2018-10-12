@@ -2,6 +2,10 @@
 
 ## 内容目录
 
+- [/usr/bin/ 下的各种 docker 命令以及相互关系](#)
+- [docker-container-shim](#docker-container-shim)
+- [docker-containerd-ctr](#docker-containerd-ctr)
+- [不同版本 docker 进程对比示例](#不同版本-docker-进程对比示例)
 - [Docker Engine](#docker-engine)
 - [Pause Container](#pause-container)
 - [Container Runtime](#container-runtime)
@@ -33,6 +37,307 @@
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
 
+
+## /usr/bin/ 下的各种 docker 命令以及相互关系
+
+```
+[#64#root@ubuntu-1604 ~]$docker --version
+Docker version 18.03.1-ce, build 9ee9f40
+[#65#root@ubuntu-1604 ~]$
+
+[#62#root@ubuntu-1604 ~]$ll /usr/bin/ | grep docker
+-rwxr-xr-x  1 root   root     38258864 Apr 26 15:18 docker*
+-rwxr-xr-x  1 root   root     22774816 Apr 26 15:15 docker-containerd*
+-rwxr-xr-x  1 root   root     18406688 Apr 26 15:15 docker-containerd-ctr*
+-rwxr-xr-x  1 root   root      4324256 Apr 26 15:15 docker-containerd-shim*
+-rwxr-xr-x  1 root   root     81682968 Apr 26 15:17 dockerd*
+-rwxr-xr-x  1 root   root       866392 Apr 26 15:13 docker-init*
+-rwxr-xr-x  1 root   root      3329080 Apr 26 15:13 docker-proxy*
+-rwxr-xr-x  1 root   root     10960720 Apr 26 15:13 docker-runc*
+[#63#root@ubuntu-1604 ~]$
+```
+
+关系：
+
+```
+docker     docker-containerd-ctr
+  |         |
+  V         V
+dockerd -> docker-containerd -+---> docker-containerd-shim -> runc -> container process
+                              |-- > docker-containerd-shim -> runc -> container process
+                              +-- > docker-containerd-shim -> runc -> container process
+```
+
+小结：
+
+- docker (cli) 和 dockerd (deamon) 构成 docker engine ；
+- dockerd 会启动 docker-containerd 子进程；
+- docker-containerd 会启动 docker-containerd-shim 子进程；
+- docker-containerd-shim 会指定 runc 为 runtime ，并直接调用 runc 包中的函数启动相应的 container ；
+- runc 真正控制 container 的生命周期；
+- 每个 container 都有自己对应的 docker-containerd-shim 进程；
+- 用户进程由 runc 进程启动；
+
+## docker-container-shim
+
+- shim for container lifecycle and reconnection.
+
+Ref:
+
+- https://github.com/containerd/containerd/blob/1ac546b3c4a3331a9997427052d1cb9888a2f3ef/reports/2017-01-27.md#L31
+
+## docker-containerd-ctr
+
+- docker-containerd-ctr 是 containerd 提供的一个开发和调试用的 CLI 工具；
+- docker-containerd-ctr 即 containerd CLI ，常简写为 ctr ；
+
+使用示例
+
+```
+docker-containerd-ctr --address unix:///var/run/docker/libcontainerd/docker-containerd.sock containers | grep 67292a357097
+```
+
+## 不同版本 docker 进程对比示例
+
+### 17.09.0-ce
+
+```
+root@harbor-service-new-stag:~# ls /usr/bin |grep docker
+docker
+docker-containerd
+docker-containerd-ctr
+docker-containerd-shim
+docker-init
+docker-proxy
+docker-runc
+dockerd
+root@harbor-service-new-stag:~#
+```
+
+```sh
+root@harbor-service-new-stag:~# docker version
+Client:
+ Version:      17.09.0-ce
+ API version:  1.32
+ Go version:   go1.8.3
+ Git commit:   afdb6d4
+ Built:        Tue Sep 26 22:42:18 2017
+ OS/Arch:      linux/amd64
+
+Server:
+ Version:      17.09.0-ce
+ API version:  1.32 (minimum version 1.12)
+ Go version:   go1.8.3
+ Git commit:   afdb6d4
+ Built:        Tue Sep 26 22:40:56 2017
+ OS/Arch:      linux/amd64
+ Experimental: false
+root@harbor-service-new-stag:~#
+```
+
+完整进程树信息
+
+```sh
+    1  1207  1207  1207 ?           -1 Ssl      0 5568:48 /usr/bin/dockerd --insecure-registry 10.1.0.13 -H fd://
+ 1207  1358  1358  1358 ?           -1 Ssl      0  90:40  \_ docker-containerd -l unix:///var/run/docker/libcontainerd/docker-containerd.sock --metrics-interval=0 --start-timeout 2m --state-dir /var/run/docker/libcontainerd/containerd --shim docker-containerd-shim --runtime docker-runc
+ 1358  2265  2265  1358 ?           -1 Sl       0   0:04  |   \_ docker-containerd-shim 9a3cdcef11b22190b69558daae4b330c3c6ccd7b2f52ee57e748475586a2b5ee /var/run/docker/libcontainerd/9a3cdcef11b22190b69558daae4b330c3c6ccd7b2f52ee57e748475586a2b5ee docker-runc
+ 2265  2283  2283  2283 ?           -1 Ss       0   0:00  |   |   \_ /bin/sh -c crond && rm -f /var/run/rsyslogd.pid && rsyslogd -n
+ 2283  2357  2357  2357 ?           -1 Ss       0   0:14  |   |       \_ crond
+ 2283  2359  2283  2283 ?           -1 Sl       0 1002:15  |   |       \_ rsyslogd -n
+ 1358  2412  2412  1358 ?           -1 Sl       0   0:04  |   \_ docker-containerd-shim e4833a0bb3404b38ed7552546d844e71773b3345e84e4221c07b2c2e83287cd8 /var/run/docker/libcontainerd/e4833a0bb3404b38ed7552546d844e71773b3345e84e4221c07b2c2e83287cd8 docker-runc
+ 2412  2430  2430  2430 ?           -1 Ssl    999 953:58  |   |   \_ mysqld
+ 1358  2537  2537  1358 ?           -1 Sl       0 5395:30  |   \_ docker-containerd-shim 97fdd84906edf0534a03c042d76b279f1a8bab4a6c7aaad5e59f330654c15cad /var/run/docker/libcontainerd/97fdd84906edf0534a03c042d76b279f1a8bab4a6c7aaad5e59f330654c15cad docker-runc
+ 2537  2565  2565  2565 ?           -1 Ssl      0 8999:20  |   |   \_ registry serve /etc/registry/config.yml
+ 1358  2625  2625  1358 ?           -1 Sl       0   7:09  |   \_ docker-containerd-shim 75107f9afe381d462f4bf7a462beefa202383f39649872fc20e99c9666e97f41 /var/run/docker/libcontainerd/75107f9afe381d462f4bf7a462beefa202383f39649872fc20e99c9666e97f41 docker-runc
+ 2625  2654  2654  2654 ?           -1 Ssl      0   7:13  |   |   \_ /harbor/harbor_adminserver
+ 1358  2817  2817  1358 ?           -1 Sl       0 502:58  |   \_ docker-containerd-shim f2c44dc5d63bef45b19c43b7ed07e14fb9d3941027d3cb3d2a944f4ad04cdfe9 /var/run/docker/libcontainerd/f2c44dc5d63bef45b19c43b7ed07e14fb9d3941027d3cb3d2a944f4ad04cdfe9 docker-runc
+ 2817  2836  2836  2836 ?           -1 Ssl      0 4805:11  |   |   \_ /harbor/harbor_ui
+ 1358  3054  3054  1358 ?           -1 Sl       0 107:01  |   \_ docker-containerd-shim c942b0dd65c61efc26cf7d13a15b37b21ce7250e7883220465860986168c69c7 /var/run/docker/libcontainerd/c942b0dd65c61efc26cf7d13a15b37b21ce7250e7883220465860986168c69c7 docker-runc
+ 3054  3089  3089  3089 ?           -1 Ssl      0 335:21  |   |   \_ /harbor/harbor_jobservice
+ 1358  3059  3059  1358 ?           -1 Sl       0 325:58  |   \_ docker-containerd-shim 8ef57fdec0305471c1201745daad4a0abefdf10fb0dbdc67d854343add853419 /var/run/docker/libcontainerd/8ef57fdec0305471c1201745daad4a0abefdf10fb0dbdc67d854343add853419 docker-runc
+ 3059  3097  3097  3097 ?           -1 Ss       0   0:00  |       \_ nginx: master process nginx -g daemon off;
+ 3097  3203  3097  3097 ?           -1 S    65534   0:51  |           \_ nginx: worker process
+ 3097  3204  3097  3097 ?           -1 S    65534   0:50  |           \_ nginx: worker process
+ 3097  3205  3097  3097 ?           -1 S    65534   6:47  |           \_ nginx: worker process
+ 3097  3206  3097  3097 ?           -1 S    65534 218:15  |           \_ nginx: worker process
+ 3097  3207  3097  3097 ?           -1 S    65534   0:54  |           \_ nginx: worker process
+ 3097  3208  3097  3097 ?           -1 S    65534  52:59  |           \_ nginx: worker process
+ 3097  3209  3097  3097 ?           -1 S    65534   1:50  |           \_ nginx: worker process
+ 3097  3210  3097  3097 ?           -1 S    65534  78:00  |           \_ nginx: worker process
+ 1207  2260  1207  1207 ?           -1 Sl       0 1062:51  \_ /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1514 -container-ip 172.18.0.2 -container-port 514
+ 1207  2976  1207  1207 ?           -1 Sl       0   0:04  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 4443 -container-ip 172.18.0.7 -container-port 4443
+ 1207  3005  1207  1207 ?           -1 Sl       0   0:38  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 443 -container-ip 172.18.0.7 -container-port 443
+ 1207  3048  1207  1207 ?           -1 Sl       0   0:04  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.7 -container-port 80
+```
+
+简化后的结构
+
+```sh
+/usr/bin/dockerd
+\_ docker-containerd
+|   \_ docker-containerd-shim
+|   |   \_ /bin/sh -c crond && rm -f /var/run/rsyslogd.pid && rsyslogd -n
+|   \_ docker-containerd-shim
+|   |   \_ mysqld
+|   \_ docker-containerd-shim
+|   |   \_ registry serve /etc/registry/config.yml
+|   \_ docker-containerd-shim
+|   |   \_ /harbor/harbor_adminserver
+|   \_ docker-containerd-shim
+|   |   \_ /harbor/harbor_ui
+|   \_ docker-containerd-shim
+|   |   \_ /harbor/harbor_jobservice
+|   \_ docker-containerd-shim
+|       \_ nginx: master process nginx -g daemon off;
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+|           \_ nginx: worker process
+\_ /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1514 -container-ip 172.18.0.2 -container-port 514
+\_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 4443 -container-ip 172.18.0.7 -container-port 4443
+\_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 443 -container-ip 172.18.0.7 -container-port 443
+\_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.7 -container-port 80
+```
+
+```sh
+root@harbor-service-new-stag:~# docker ps
+CONTAINER ID        IMAGE                              COMMAND                  CREATED             STATUS              PORTS                                                              NAMES
+c942b0dd65c6        vmware/harbor-jobservice:v1.2.2    "/harbor/harbor_jo..."   3 months ago        Up 3 months                                                                            harbor-jobservice
+8ef57fdec030        vmware/nginx-photon:1.11.13        "nginx -g 'daemon ..."   3 months ago        Up 3 months         0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp   nginx
+f2c44dc5d63b        vmware/harbor-ui:v1.2.2            "/harbor/harbor_ui"      3 months ago        Up 3 months                                                                            harbor-ui
+75107f9afe38        vmware/harbor-adminserver:v1.2.2   "/harbor/harbor_ad..."   3 months ago        Up 3 months                                                                            harbor-adminserver
+97fdd84906ed        vmware/registry:2.6.2-photon       "/entrypoint.sh se..."   3 months ago        Up 3 months         5000/tcp                                                           registry
+e4833a0bb340        vmware/harbor-db:v1.2.2            "docker-entrypoint..."   3 months ago        Up 3 months         3306/tcp                                                           harbor-db
+9a3cdcef11b2        vmware/harbor-log:v1.2.2           "/bin/sh -c 'crond..."   3 months ago        Up 3 months         127.0.0.1:1514->514/tcp                                            harbor-log
+root@harbor-service-new-stag:~#
+
+root@harbor-service-new-stag:/opt/apps/harbor# docker-compose ps
+       Name                     Command               State                                Ports
+------------------------------------------------------------------------------------------------------------------------------
+harbor-adminserver   /harbor/harbor_adminserver       Up
+harbor-db            docker-entrypoint.sh mysqld      Up      3306/tcp
+harbor-jobservice    /harbor/harbor_jobservice        Up
+harbor-log           /bin/sh -c crond && rm -f  ...   Up      127.0.0.1:1514->514/tcp
+harbor-ui            /harbor/harbor_ui                Up
+nginx                nginx -g daemon off;             Up      0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp, 0.0.0.0:80->80/tcp
+registry             /entrypoint.sh serve /etc/ ...   Up      5000/tcp
+root@harbor-service-new-stag:/opt/apps/harbor#
+```
+
+### 18.03.1-ce
+
+```
+[#48#root@ubuntu-1604 ~]$ls /usr/bin |grep docker
+docker
+docker-containerd
+docker-containerd-ctr
+docker-containerd-shim
+dockerd
+docker-init
+docker-proxy
+docker-runc
+[#49#root@ubuntu-1604 ~]$
+```
+
+```sh
+[#14#root@ubuntu-1604 /opt/apps/harbor]$docker version
+Client:
+ Version:      18.03.1-ce
+ API version:  1.37
+ Go version:   go1.9.5
+ Git commit:   9ee9f40
+ Built:        Thu Apr 26 07:17:20 2018
+ OS/Arch:      linux/amd64
+ Experimental: false
+ Orchestrator: swarm
+
+Server:
+ Engine:
+  Version:      18.03.1-ce
+  API version:  1.37 (minimum version 1.12)
+  Go version:   go1.9.5
+  Git commit:   9ee9f40
+  Built:        Thu Apr 26 07:15:30 2018
+  OS/Arch:      linux/amd64
+  Experimental: false
+[#15#root@ubuntu-1604 /opt/apps/harbor]$
+```
+
+简化后的结构
+
+```sh
+    1  1165  1165  1165 ?           -1 Ssl      0   6:40 /usr/bin/dockerd -H fd://
+ 1165  1318  1318  1318 ?           -1 Ssl      0   7:38  \_ docker-containerd --config /var/run/docker/containerd/containerd.toml
+ 1318  4508  4508  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/67b25c6b3a33eefcb68abbe521f96947fcbe1aba52290e63711aaf7775314c0b -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 4508  4524  4524  4524 ?           -1 Ss       0   0:00  |   |   \_ /bin/bash /usr/local/bin/start.sh
+ 4524  4574  4574  4574 ?           -1 Ss       0   0:00  |   |       \_ crond
+ 4524  4579  4524  4524 ?           -1 S        0   0:00  |   |       \_ sudo -u #10000 -E rsyslogd -n
+ 4579  4582  4524  4524 ?           -1 Sl   10000   0:00  |   |           \_ rsyslogd -n
+ 1318  4640  4640  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/2190541c1c0fec236b1be38710a0e56c1c07eaa0705bdaaadb982d849d6c480e -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 4640  4737  4737  4737 ?           -1 Ss       0   0:00  |   |   \_ sudo -u mysql -E /usr/local/bin/docker-entrypoint.sh mysqld
+ 4737  5105  4737  4737 ?           -1 Sl   10000   0:00  |   |       \_ mysqld
+ 1318  4717  4717  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/6ca0856685a7a86dfa62088b8f8936948fbe3211b194275b6d28188fc4fe9db8 -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 4717  4875  4875  4875 ?           -1 Ss       0   0:00  |   |   \_ /bin/sh /harbor/start.sh
+ 4875  5145  4875  4875 ?           -1 S        0   0:00  |   |       \_ sudo -E -u #10000 /harbor/harbor_adminserver
+ 5145  5154  4875  4875 ?           -1 Sl   10000   0:00  |   |           \_ /harbor/harbor_adminserver
+ 1318  4765  4765  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/8c348b49787853eec39d93173c85001cc5131f4043d7cb3ab5a3c00b80a75607 -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 4765  4867  4867  4867 ?           -1 Ss       0   0:00  |   |   \_ sudo -u redis redis-server /etc/redis.conf
+ 4867  5082  4867  4867 ?           -1 Sl     999   0:00  |   |       \_ redis-server *:6379
+ 1318  4791  4791  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/ea0ca3ad857dbd16cb147c69e5f9f6b60915e1af5418eb73c28942ef60850dfe -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 4791  4903  4903  4903 ?           -1 Ss       0   0:00  |   |   \_ /bin/sh /entrypoint.sh serve /etc/registry/config.yml
+ 4903  5081  4903  4903 ?           -1 S        0   0:00  |   |       \_ sudo -E -u #10000 registry serve /etc/registry/config.yml
+ 5081  5083  4903  4903 ?           -1 Sl   10000   0:00  |   |           \_ registry serve /etc/registry/config.yml
+ 1318  5175  5175  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/bed8d048a618a3326f11e402eb1df677870e00692654824c30a6456446c0a1c5 -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 5175  5230  5230  5230 ?           -1 Ss       0   0:00  |   |   \_ /bin/sh /harbor/start.sh
+ 5230  5301  5230  5230 ?           -1 S        0   0:00  |   |       \_ sudo -E -u #10000 /harbor/harbor_ui
+ 5301  5307  5230  5230 ?           -1 Sl   10000   0:00  |   |           \_ /harbor/harbor_ui
+ 1318  5490  5490  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/4df3d3e341b4290cb8f4fc7e0602bbf03460779bf9c5003fadccd5ed0f993634 -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 5490  5513  5513  5513 ?           -1 Ss       0   0:00  |   |   \_ nginx: master process nginx -g daemon off;
+ 5513  5618  5513  5513 ?           -1 S    65534   0:00  |   |       \_ nginx: worker process
+ 5513  5619  5513  5513 ?           -1 S    65534   0:00  |   |       \_ nginx: worker process
+ 1318  5893  5893  1318 ?           -1 Sl       0   0:00  |   \_ docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/40b7e9636454340db81495c0953fe246d5b3824061f4e0bb555bbe044cb3837a -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+ 5893  5938  5938  5938 ?           -1 Ss       0   0:00  |       \_ /bin/sh /harbor/start.sh
+ 5938  5995  5938  5938 ?           -1 S        0   0:00  |           \_ sudo -E -u #10000 /harbor/harbor_jobservice -c /etc/jobservice/config.yml
+ 5995  6000  5938  5938 ?           -1 Sl   10000   0:00  |               \_ /harbor/harbor_jobservice -c /etc/jobservice/config.yml
+ 1165  4477  1165  1165 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1514 -container-ip 172.18.0.2 -container-port 10514
+ 1165  5431  1165  1165 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 4443 -container-ip 172.18.0.9 -container-port 4443
+ 1165  5467  1165  1165 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 443 -container-ip 172.18.0.9 -container-port 443
+ 1165  5484  1165  1165 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.9 -container-port 80
+```
+
+```sh
+/usr/bin/dockerd -H fd://
+ \_ docker-containerd --config /var/run/docker/containerd/containerd.toml
+ |   \_ docker-containerd-shim                                                                                                                                                                                                                                                   |   |   \_ /bin/bash /usr/local/bin/start.sh
+ |   \_ docker-containerd-shim
+ |   |   \_ sudo -u mysql -E /usr/local/bin/docker-entrypoint.sh mysqld
+ |   |       \_ mysqld
+ |   \_ docker-containerd-shim
+ |   |   \_ /bin/sh /harbor/start.sh                                                                                                                                                                                                                                             |   |       \_ sudo -E -u #10000 /harbor/harbor_adminserver
+ |   |           \_ /harbor/harbor_adminserver
+ |   \_ docker-containerd-shim
+ |   |   \_ sudo -u redis redis-server /etc/redis.conf                                                                                                                                                                                                                           |   |       \_ redis-server *:6379
+ |   \_ docker-containerd-shim
+ |   |   \_ /bin/sh /entrypoint.sh serve /etc/registry/config.yml
+ |   |       \_ sudo -E -u #10000 registry serve /etc/registry/config.yml
+ |   |           \_ registry serve /etc/registry/config.yml                                                                                                                                                                                                                      |   \_ docker-containerd-shim
+ |   |   \_ /bin/sh /harbor/start.sh
+ |   |       \_ sudo -E -u #10000 /harbor/harbor_ui
+ |   |           \_ /harbor/harbor_ui                                                                                                                                                                                                                                            |   \_ docker-containerd-shim
+ |   |   \_ nginx: master process nginx -g daemon off;
+ |   |       \_ nginx: worker process
+ |   |       \_ nginx: worker process
+ |   \_ docker-containerd-shim                                                                                                                                                                                                                                                   |       \_ /bin/sh /harbor/start.sh
+ |           \_ sudo -E -u #10000 /harbor/harbor_jobservice -c /etc/jobservice/config.yml
+ |               \_ /harbor/harbor_jobservice -c /etc/jobservice/config.yml
+ \_ /usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 1514 -container-ip 172.18.0.2 -container-port 10514
+ \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 4443 -container-ip 172.18.0.9 -container-port 4443                                                                                                                                                              \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 443 -container-ip 172.18.0.9 -container-port 443
+ \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 172.18.0.9 -container-port 80
+```
 
 ## Docker Engine
 
@@ -199,7 +504,7 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 
 ![containerd with container orchestration systems](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20container%20orchestration%20systems.png)
 
-对比下图
+对比
 
 ![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20is%20a%20kind%20of%20container%20runtime.png)
 
