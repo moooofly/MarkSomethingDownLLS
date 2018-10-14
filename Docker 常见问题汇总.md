@@ -5,7 +5,7 @@
 - [/usr/bin/ 下各种 docker 命令之间的关系](#usrbin-下各种-docker-命令之间的关系)
 - [docker-container-shim](#docker-container-shim)
 - [docker-containerd-ctr](#docker-containerd-ctr)
-- [不同 Docker 版本生成的容器进程树对比](#不同-Docker-版本生成的容器进程树对比)
+- [不同 Docker 版本生成的容器进程树对比](#不同-docker-版本生成的容器进程树对比)
 - [Docker Engine](#docker-engine)
 - [Pause Container](#pause-container)
 - [Container Runtime](#container-runtime)
@@ -19,6 +19,8 @@
     - [Containerd 和 OCI 和 runC 之间的关系](#containerd-和-oci-和-runc-之间的关系)
     - [Containerd 和 Container Orchestration Systems 之间的关系](#containerd-和-container-orchestration-systems-之间的关系)
     - [The Kubernetes containerd Integration Architecture](#the-kubernetes-containerd-integration-architecture)
+    - [cri-containerd](#cri-containerd)
+    - [How cri-containerd Works](#how-cri-containerd-works)
     - [Performance Improvement](#performance-improvement)
     - [Containerd 和 Docker Engine 和 Kubernetes 的关系](#containerd-和-docker-engine-和-kubernetes-的关系)
     - [Summary](#summary)
@@ -36,7 +38,6 @@
 - [镜像源变更](#镜像源变更)
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
-
 
 ## /usr/bin/ 下各种 docker 命令之间的关系
 
@@ -395,17 +396,25 @@ https://www.ianlewis.org/en/almighty-pause-container
 
 ## Container Runtime
 
-- containerd: An open and reliable container runtime.
-- "When using Docker as the container runtime for Kubernetes" -- 说明在粗粒度上，可以认为 Docker 就是一种 container runtime ；
-- With [containerd/cri](https://github.com/containerd/cri), you could run Kubernetes using containerd as the container runtime. 
+A container runtime is software that **executes containers** and **manages container images** on a node.
+
+- Today, the most widely known container runtime is `Docker`.
+- But there are other container runtimes in the ecosystem, such as [`rkt`](https://coreos.com/rkt/), [`containerd`](https://containerd.io/), and [`lxd`](https://linuxcontainers.org/lxd/).
+- Containerd is an OCI compliant core container runtime designed to be embedded into larger systems.
 
 ### CRI
 
-- CRI is short for Container Runtime Interface.
+- CRI is short for **Container Runtime Interface**.
+- [Kubernetes 1.5 introduced an internal plugin API named Container Runtime Interface (CRI)](https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/) to provide easy access to different container runtimes. 
+- CRI enables Kubernetes to use a variety of container runtimes without the need to recompile. 
+- In theory, Kubernetes could use any container runtime that implements CRI to manage pods, containers and container images.
+- Over the past 6 months, engineers from Google, Docker, IBM, ZTE, and ZJU have worked to implement CRI for containerd. The project is called [cri-containerd](https://github.com/containerd/cri), which had its [feature complete v1.0.0-alpha.0 release](https://github.com/containerd/cri/releases/tag/v1.0.0-alpha.0) on September 25, 2017. 
+- With cri-containerd, users can run Kubernetes clusters using containerd as the underlying runtime without Docker installed.
 - Docker CRI implementation - [`dockershim`](https://github.com/kubernetes/kubernetes/tree/v1.10.2/pkg/kubelet/dockershim)
-- The containerd 1.1 integration uses the CRI plugin built into containerd.
 - The Docker 18.03 CE integration uses the `dockershim`.
-- The containerd CRI plugin is an open source github project within containerd https://github.com/containerd/cri.
+- The containerd 1.1 integration uses the CRI plugin built into containerd.
+- The containerd CRI plugin is an open source [github project](https://github.com/containerd/cri) within containerd.
+- With [containerd/cri](https://github.com/containerd/cri), you could run Kubernetes using containerd as the container runtime. 
 - Containerd is used by Docker, Kubernetes CRI, and a few other projects. 
 
 ### Container Runtime CLI
@@ -428,7 +437,6 @@ https://www.ianlewis.org/en/almighty-pause-container
 ## Kubernetes Node Performance Benchmark
 
 Part of [Kubernetes node e2e test](https://github.com/kubernetes/community/blob/master/contributors/devel/e2e-node-tests.md)
-
 
 ## Containerd
 
@@ -465,6 +473,9 @@ containerd 是基于 Docker Engine 的 container runtime 开发起来的；
 
 ![containerd - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20-%201.png)
 
+Containerd was initiated by Docker Inc. and donated to CNCF in March of 2017. 
+
+Containerd has a much smaller scope than Docker, provides a golang client API, and is more focused on being embeddable.
 
 ### 为什么需要 Containerd
 
@@ -509,7 +520,7 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 
 ### Containerd 和 OCI 和 runC 之间的关系
 
-> Docker donated the OCI specification to the Linux Foundation in 2015, along with a reference implementation called runc. containerd integrates OCI/runc into a feature-complete, production-ready core container runtime. runc is a component of containerd, the executor for containers. containerd has a wider scope than just executing containers: downloading container images, managing storage and network interfaces, calling runc with the right parameters to run containers. containerd fully leverages the Open Container Initiative’s (OCI) runtime, image format specifications and OCI reference implementation (runc) and will pursue OCI certification when it is available. Because of its massive adoption, containerd is the industry standard for implementing OCI.
+> Docker donated the **OCI specification** to the Linux Foundation in 2015, along with a reference implementation called `runc`. containerd integrates **OCI/runc** into a feature-complete, production-ready core container runtime. `runc` is a component of containerd, the executor for containers. containerd has a wider scope than just executing containers: downloading container images, managing storage and network interfaces, calling `runc` with the right parameters to run containers. containerd fully leverages the Open Container Initiative’s (OCI) runtime, image format specifications and OCI reference implementation (`runc`) and will pursue OCI certification when it is available. Because of its massive adoption, containerd is the industry standard for implementing OCI.
 
 - Docker 将 OCI 标准贡献给了 Linux Foundation ，同时还有一个 OCI 标准的参考实现，即 runC ；
 - containerd 集成 OCI/runc 后，成为了一个特性完整、生产级别的 core container runtime ；
@@ -523,7 +534,6 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
     - image format specifications
     - OCI 的参考实现 runc
 - 由于 containerd 被大量采用，已经成为了 OCI 实现的工业标准；
-
 
 ### Containerd 和 Container Orchestration Systems 之间的关系
 
@@ -563,6 +573,29 @@ The Kubernetes containerd integration architecture has evolved twice.
 
 用户现在已经可以在 Kubernetes 中直接使用 containerd 1.1 了；因此 `cri-containerd` daemon 已经不再需要了；
 
+### cri-containerd
+
+> Cri-containerd is exactly that: an implementation of CRI for containerd. It operates on the same node as the Kubelet and containerd. Layered between Kubernetes and containerd, cri-containerd handles all CRI service requests from the Kubelet and uses containerd to manage containers and container images. Cri-containerd manages these service requests in part by forming containerd service requests while adding sufficient additional function to support the CRI requirements.
+
+- cri-containerd 是一种 CRI 实现；
+- cri-containerd 运行在与 Kubelet 和 containerd 相同的 node 上；
+- cri-containerd 位于 Kubernetes 和 containerd 中间，处理所有来自 Kubelet 的 CRI 服务请求，并使用 containerd 管理容器和容器镜像；
+
+> Cri-containerd uses containerd to manage the full container lifecycle and all container images. As also shown below, cri-containerd manages pod networking via CNI (another CNCF project).
+
+![cri-containerd architecture](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/cri-containerd%20architecture.png)
+
+### How cri-containerd Works
+
+Let’s use an example to demonstrate how cri-containerd works for the case when Kubelet creates a single-container pod:
+
+1. Kubelet calls cri-containerd, via the CRI runtime service API, to create a pod;
+2. cri-containerd uses containerd to create and start a special pause container (the sandbox container) and put that container inside the pod’s cgroups and namespace (steps omitted for brevity);
+3. cri-containerd configures the pod’s network namespace using CNI;
+4. Kubelet subsequently calls cri-containerd, via the CRI image service API, to pull the application container image;
+5. cri-containerd further uses containerd to pull the image if the image is not present on the node;
+6. Kubelet then calls cri-containerd, via the CRI runtime service API, to create and start the application container inside the pod using the pulled container image;
+7. cri-containerd finally calls containerd to create the application container, put it inside the pod’s cgroups and namespace, then to start the pod’s new application container. After these steps, a pod and its corresponding application container is created and running.
 
 ### Performance Improvement
 
@@ -570,6 +603,7 @@ Performance improvement between containerd 1.1 and Docker 18.03 CE was optimized
 
 ### Containerd 和 Docker Engine 和 Kubernetes 的关系
 
+- Docker is by far the most common container runtime used in production Kubernetes environments, but Docker’s smaller offspring, **containerd**, may prove to be a better option. 
 - Docker Engine is built on top of containerd. 
 - The next release of [Docker Community Edition (Docker CE)](https://www.docker.com/products/docker-engine) will use containerd version 1.1. Of course, it will have the CRI plugin built-in and enabled by default. This means users will have the option to continue using Docker Engine for other purposes typical for Docker users, while also being able to configure Kubernetes to use the underlying containerd that came with and is simultaneously being used by Docker Engine on the same node. 
 - Since containerd is being used by both Kubelet and Docker Engine, this means users who choose the containerd integration will not just get new Kubernetes features, performance, and stability improvements, they will also have the option of keeping Docker Engine around for other use cases.
@@ -582,7 +616,6 @@ Performance improvement between containerd 1.1 and Docker 18.03 CE was optimized
 See the architecture figure below showing the same containerd being used by Docker Engine and Kubelet:
 
 ![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20with%20Docker%20Engine%20and%20kubelet.png)
-
 
 ### Summary
 
@@ -607,7 +640,7 @@ Ref:
 - [Kubernetes Containerd Integration Goes GA](https://kubernetes.io/blog/2018/05/24/kubernetes-containerd-integration-goes-ga/)
 - [Docker Engine Sparked the Containerization Movement](https://www.docker.com/products/docker-engine)
 - [What is containerd runtime](https://blog.docker.com/2017/08/what-is-containerd-runtime/)
-
+- [Containerd Brings More Container Runtime Options for Kubernetes](https://kubernetes.io/blog/2017/11/containerd-container-runtime-options-kubernetes/)
 
 ## Image Formats
 
@@ -676,11 +709,9 @@ manifest 事实上就是基于 JSON 方式描述的 named/tagged image ；这个
 - 用于构建容器所需的 root filesystem 的、真实的文件系统内容（layers）；
 - 任何需要了解的、基于该 image 的容器如何运行的、具体 image 配置；
 
-
 > As a prior answer mentioned, a client (such as the `docker pull` implementation) talking to a registry will interact over the Docker v2 API to first fetch the manifest for a specific image/tag and then determine what to download in addition to be able to run a container based on this image. The v2 manifest format does not have signatures encoded into it, but external verification using tools like a [`notary` server](https://github.com/theupdateframework/notary) can be used to validate external signatures on the same "blob"/hash of content for full cryptographic trust. Docker calls this "**Docker Content Trust**" but does not require it when talking to a registry, nor is it part of the API flow when talking to an image registry.
 
 > One additional detail about manifests in the v2.2 spec: there is not only a **standard manifest type**, but also a **manifest list type** which allows registries to represent support for multiple platforms (CPU or operating system variations) under a single "image:tag" reference. The manifest list simply has a list of platform entries with a redirector to an existing manifest so that an engine can go retrieve the correct components for that specific platform/architecture combination. **In DockerHub today, all official images are now actually manifest lists, allowing for many platforms to be supported using the same image name:tag combination**. I have a tool which can query entries in a registry and show whether they are manifest lists and also dump the contents of a manifest--both manifest lists and "regular" manifests. You can read more at the [manifest-tool](https://github.com/estesp/manifest-tool) GitHub repository.
-
 
 ## What are Docker image “layers”?
 
@@ -699,7 +730,6 @@ From the official Docker docs:
 
 
 ![](https://docs.docker.com/storage/storagedriver/images/container-layers.jpg)
-
 
 ## /var/run/docker.sock
 
@@ -729,7 +759,6 @@ curl --unix-socket /var/run/docker.sock http://localhost/events
 - [About /var/run/docker.sock](https://medium.com/lucjuggery/about-var-run-docker-sock-3bfd276e12fd)
 - [Can anyone explain docker.sock](https://stackoverflow.com/questions/35110146/can-anyone-explain-docker-sock)
 - [The Dangers of Docker.sock](https://raesene.github.io/blog/2016/03/06/The-Dangers-Of-Docker.sock/)
-
 
 ## --privileged 特权容器
 
