@@ -51,7 +51,13 @@
 
 对于其他类型的（非官方支持） `Library` ，可以通过对 `Agent` 进行扩展，进而处理相应的数据；这部分功能可以基于特定的 interceptors 实现来完成；
 
-![](https://raw.githubusercontent.com/census-instrumentation/opencensus-proto/master/src/opencensus/proto/agent/agent-architecture.png)
+old:
+
+![ocagent-architecture-old](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/ocagent-architecture-old.png)
+
+new:
+
+![ocagent-architecture-new](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/ocagent-architecture-new.png)
 
 > To support `Agent`, `Library` should have “**agent exporters**”, similar to the existing exporters to other backends. There should be 3 separate agent exporters for tracing/stats/metrics respectively. Agent exporters will be responsible for sending spans/stats/metrics and (possibly) receiving configuration updates from `Agent`.
 
@@ -68,8 +74,15 @@
 ### Protocol Workflow
 
 > - `Library` will try to **directly establish** connections for **Config** and **Export** streams.
-> - As the **first message** in each stream, `Library` must sent its identifier. Each identifier should uniquely identify `Library` within the VM/container. Identifier is no longer needed once the streams are established.
+> - As the **first message** in each stream, `Library` must sent its identifier. Each identifier should uniquely identify `Library` within the VM/container. If there is no identifier in the first message, Agent should drop the whole message and return an error to the client. In addition, the first message MAY contain additional data (such as `Span`s). As long as it has a valid identifier assoicated, Agent should handle the data properly, as if they were sent in a subsequent message. Identifier is no longer needed once the streams are established.
 > - If streams were disconnected and retries failed, the `Library` identifier would be considered expired on `Agent` side. `Library` needs to start a new connection with a unique identifier (MAY be different than the previous one).
+
+### Implementation details of Agent Server
+
+> This section describes the in-process implementation details of OC-Agent.
+
+![ocagent-in-process-details](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/ocagent-in-process-details.png)
+
 
 ### Packages
 

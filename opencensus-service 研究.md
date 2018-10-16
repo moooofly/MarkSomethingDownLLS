@@ -8,14 +8,20 @@ OpenCensus service 目前作为一个实验性组件提供；用于 collect 并 
 
 > Some frameworks and ecosystems are now providing out-of-the-box instrumentation by using OpenCensus but the user is still expected to register an exporter in order to export data. **This is a problem during an incident**. Even though our users can benefit from having more diagnostics data coming out of services already instrumented with OpenCensus, they have to modify their code to register an exporter and redeploy. Asking our users recompile and redeploy is not an ideal at an incident time.
 
+> In addition, currently users need to decide which service backend they want to export to, before they distribute their binary instrumented by OpenCensus.
+
 虽然在一些 frameworks 和 ecosystems 中都提供了开箱即用的 instrumentation 能力，以方便 OpenCensus 的使用，但某些场景下，用户仍会希望自行注册一个 exporter 来进行数据导出，例如发生事故时；
 
 基于 frameworks 的使用方式要求用户修改代码以便注册 exporter ，并且还需要重新进行部署；在某些情况下，这些要求都是很难实现的；
 
-> OpenCensus service is trying to eliminate this requirement.
+> OpenCensus service is trying to eliminate these requirements.
 
-OpenCensus service 正是用于消除上述约束；
+> With OpenCensus Service, users do not need to redeploy or restart their applications as long as it has the OpenCensus Agent exporter. All they need to do is just configure and deploy OpenCensus Service separately. OpenCensus Service will then automatically collect traces and metrics and export to any backend of users' choice.
 
+OpenCensus service 正是用于消除上述约束；在使用 OpenCensus Service 后，只要使用了 OpenCensus Agent exporter ，则用户不再需要重新部署或重启他们的应用程序；用户唯一需要做的只是单独配置和部署 OpenCensus Service 而已；之后 OpenCensus Service 就会自动搜集 traces 和 metrics 信息，并导出到用户所选的任何 backend ；
+
+
+> Currently OpenCensus Service consists of two components, [OpenCensus Agent](https://github.com/census-instrumentation/opencensus-service#opencensus-agent) and [OpenCensus Collector](https://github.com/census-instrumentation/opencensus-service#opencensus-collector).
 
 > Goals
 >
@@ -30,6 +36,11 @@ OpenCensus service 正是用于消除上述约束；
 - 可以针对开源 binary 项目进行 instrument 动作，无需额外的处理；
 - 针对 exporters 种类的扩展更容易；
 - 基于 daemon 模式的实现定制化程度更高；
+
+
+### OpenCensus Agent
+
+### OpenCensus Collector
 
 使用方法：
 
