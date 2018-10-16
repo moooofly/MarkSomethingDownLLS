@@ -40,11 +40,11 @@ OpenCensus service 正是用于消除上述约束；在使用 OpenCensus Service
 
 ### OpenCensus Agent
 
-详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/opencensus-service%20%E6%BC%94%E5%8F%98.md#opencensus-agent-proto
+详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-agent-1
 
 ### OpenCensus Collector
 
-详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/opencensus-service%20%E6%BC%94%E5%8F%98.md#opencensus-agent-proto
+详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-collector
 
 
 ----------
