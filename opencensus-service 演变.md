@@ -1,4 +1,4 @@
-# opencensus-service 演变
+# OpenCensus Agent
 
 ## 背景
 
@@ -27,6 +27,16 @@
 ## [OpenCensus Agent Proto](https://github.com/census-instrumentation/opencensus-proto/blob/master/src/opencensus/proto/agent/README.md)
 
 > This package describes the **OpenCensus Agent protocol**.
+
+### Packages
+
+> - `common` package contains the common messages shared between different services, such as `Node`, `Service` and `Library` identifiers.
+> - `trace` package contains the Trace Service protos.
+> - `metrics` package contains the Metrics Service protos.
+> - (Coming soon) `stats` package contains the Stats Service protos.
+
+
+## [OpenCensus Agent](https://github.com/census-instrumentation/opencensus-service#opencensus-agent)
 
 ### Architecture Overview
 
@@ -83,10 +93,167 @@ new:
 
 ![ocagent-in-process-details](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/ocagent-in-process-details.png)
 
+> Note: Red arrows represent RPCs or HTTP requests. Black arrows represent local method invocations.
 
-### Packages
+> The Agent consists of three main parts:
+> 
+> - **The interceptors of different instrumentation libraries**, such as **OpenCensus**, **Zipkin**, **Istio Mixer**, **Prometheus client**, etc. Interceptors act as the “frontend” or “gateway” of Agent. In addition, there MAY be one special receiver for receiving configuration updates from outside.
+> - **The core Agent module**. It acts as the “brain” or “dispatcher” of Agent.
+> - **The exporters to different monitoring backends or collector services**, such as **Omnition Collector**, **Stackdriver Trace**, **Jaeger**, **Zipkin**, etc.
 
-> - `common` package contains the common messages shared between different services, such as `Node`, `Service` and `Library` identifiers.
-> - `trace` package contains the Trace Service protos.
-> - (Coming soon) `stats` package contains the Stats Service protos.
-> - (Coming soon) `metrics` package contains the Metrics Service protos.
+Agent 由三部分构成：
+
+- interceptors
+- core module
+- exporters
+
+#### Interceptors
+
+> Each interceptor can be connected with multiple instrumentation libraries. The communication protocol between interceptors and libraries is the one we described in the proto files (for example trace_service.proto). When a library opens the connection with the corresponding interceptor, the first message it sends must have the Node identifier. The interceptor will then cache the Node for each library, and Node is not required for the subsequent messages from libraries.
+
+- 每个 interceptor 可以和多个 instrumentation libraries 建立连接；
+- Interceptors 和 libraries 之间的通信协议由 proto 文件定义（例如 trace_service.proto）；
+- 当一个 library 打开了一个和某个 interceptor 对应的连接，第一条消息必须带有 Node identifier ；之后 interceptor 会为缓存 Node 信息以便所有 library 可用，因此来自 libraries 的后续消息将不在需要 Node 信息了；
+
+#### Agent Core
+
+> Most functionalities of Agent are in Agent Core. Agent Core's responsibilies include:
+
+> - **Accept `SpanProto` from each interceptor**. Note that the `SpanProto`s that are sent to Agent Core must have Node associated, so that Agent Core can differentiate and group SpanProtos by each Node.
+> - **Store and batch `SpanProto`s**.
+> - **Augment the `SpanProto` or `Node` sent from the interceptor**. For example, in a Kubernetes container, Agent Core can detect the namespace, pod id and container name and then add them to its record of Node from interceptor.
+> - For some configured period of time, Agent Core will **push `SpanProto`s (grouped by Nodes) to Exporters**.
+> - **Display the currently stored `SpanProto`s on local zPages**.
+> - **MAY accept the updated configuration from Config Receiver, and apply it to all the config service clients**.
+> - **MAY track the status of all the connections of Config streams**. Depending on the language and implementation of the Config service protocol, Agent Core MAY either store a list of active Config streams (e.g gRPC-Java), or a list of last active time for streams that cannot be kept alive all the time (e.g gRPC-Python).
+
+
+#### Exporters
+
+> Once in a while, Agent Core will push `SpanProto` with `Node` to each exporter. After receiving them, each exporter will translate `SpanProto` to the format supported by the backend (e.g Jaeger Thrift Span), and then push them to corresponding backend or service.
+
+### Usage
+
+- Install `ocagent` if you haven't.
+
+```
+$ go get github.com/census-instrumentation/opencensus-service/cmd/ocagent
+```
+
+### 配置文件
+
+Create a `config.yaml` file in the current directory and modify it with the exporter and interceptor configuration. 
+
+#### Exporters
+
+For example, following configuration exports both to Stackdriver and Zipkin.
+
+```
+# config.yaml
+
+stackdriver:
+  project: "your-project-id"
+  enableTraces: true
+
+zipkin:
+  endpoint: "http://localhost:9411/api/v2/spans"
+```
+
+#### Interceptors
+
+To modify the address that the OpenCensus interceptor runs on, please use the YAML field name `opencensus_interceptor` and it takes fields like address. For example:
+
+```
+opencensus_interceptor:
+    address: "localhost:55678"
+```
+
+### Running an end-to-end example/demo
+
+Run the example application that **collects** traces and **exports** to the daemon if it is running.
+
+- 首先运行 `ocagent`
+
+```
+$ ocagent
+```
+
+- 之后运行 demo 应用
+
+```
+$ go run "$(go env GOPATH)/src/github.com/census-instrumentation/opencensus-service/example/main.go"
+```
+
+You should be able to see the traces in `Stackdriver` and `Zipkin`. If you stop the `ocagent`, example application will stop exporting. If you run it again, exporting will resume.
+
+
+## [OpenCensus Collector](https://github.com/census-instrumentation/opencensus-service#opencensus-collector)
+
+> The OpenCensus Collector is a component that runs “nearby” (e.g. in the same VPC, AZ, etc.) a user’s application components and receives trace spans and metrics emitted by the OpenCensus Agent or tasks instrumented with OpenCensus instrumentation (or other supported protocols/libraries). The received spans and metrics could be emitted directly by clients in instrumented tasks, or potentially routed via intermediate proxy sidecar/daemon agents (such as the OpenCensus Agent). **The collector provides a central egress point for exporting traces and metrics to one or more tracing and metrics backends, with buffering and retries as well as advanced aggregation, filtering and annotation capabilities**.
+
+collector 提供了中央 egress 出口，用于导出 traces 和 metrics 到一个或多个 backends ；collector 提供了缓冲功能，提供了失败重试功能，提供了聚合、过滤，以及 annotation 等高级能力；
+
+> The collector is extensible enabling it to support a range of out-of-the-box (and custom) capabilities such as:
+> 
+> - Retroactive (tail-based) sampling of traces 抽样率反制调整方法
+> - Cluster-wide z-pages
+> - Filtering of traces and metrics 过滤
+> - Aggregation of traces and metrics 聚合
+> - Decoration with meta-data from infrastructure provider (e.g. k8s master) 额外信息添加
+> - much more ...
+
+> The collector also serves as a control plane for agents/clients by supplying them updated configuration (e.g. trace sampling policies), and reporting agent/client health information/inventory metadata to downstream exporters.
+
+collector 还可以作为控制面，为 agents/clients 提供配置更新功能，提供健康状态报告元数据给下游的 exporters ；
+
+
+### Architecture Overview
+
+> The OpenCensus Collector runs as a standalone instance and receives spans and metrics exporterd by one or more OpenCensus Agents or Libraries, or by tasks/agents that emit in one of the supported protocols. The Collector is configured to send data to the configured exporter(s). The following figure summarizes the deployment architecture:
+
+![](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/collector-architecture.png)
+
+> The OpenCensus Collector can also be deployed in other configurations, such as receiving data from other agents or clients in one of the formats supported by its interceptors.
+
+### Usage
+
+- install the collector if you haven't
+
+```
+$ go get github.com/census-instrumentation/opencensus-service/cmd/occollector
+```
+
+Create a `config.yaml` file in the current directory and modify it with the collector exporter configuration.
+
+```
+omnition:
+  tenant: "your-api-key"
+```
+
+- install ocagent if you haven't
+
+```
+$ go get github.com/census-instrumentation/opencensus-service/cmd/ocagent
+```
+
+Create a `config.yaml` file in the current directory and modify it with the collector exporter configuration.
+
+```
+collector:
+  endpoint: "https://collector.local"
+```
+
+- Run the example application that collects traces and exports to the daemon if it is running
+
+```
+$ go run "$(go env GOPATH)/src/github.com/census-instrumentation/opencensus-service/example/main.go"
+```
+
+- Run ocagent
+
+```
+$ ocagent
+```
+
+You should be able to see the traces in the configured tracing backend. If you stop the ocagent, example application will stop exporting. If you run it again, it will start exporting again.
+

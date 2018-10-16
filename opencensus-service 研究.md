@@ -40,42 +40,11 @@ OpenCensus service 正是用于消除上述约束；在使用 OpenCensus Service
 
 ### OpenCensus Agent
 
+详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/opencensus-service%20%E6%BC%94%E5%8F%98.md#opencensus-agent-proto
+
 ### OpenCensus Collector
 
-使用方法：
-
-- First, install `opencensusd` if you haven't.
-
-```
-$ go get github.com/census-instrumentation/opencensus-service/cmd/opencensusd
-```
-
-- Create a `config.yaml` file in the current directory and modify it with the exporter configuration. For example, following configuration exports both to Stackdriver and Zipkin.
-
-```
-# config.yaml
-
-stackdriver:
-  project: "your-project-id"
-  enableTraces: true
-
-zipkin:
-  endpoint: "http://localhost:9411/api/v2/spans"
-```
-
-- Run the `example` application that **collects traces** and **exports to the daemon** if it is running.
-
-```
-$ go run "$(go env GOPATH)/src/github.com/census-instrumentation/opencensus-service/example/main.go"
-```
-
-- Run `opencensusd`
-
-```
-$ opencensusd
-```
-
-- You should be able to see the traces in `Stackdriver` and `Zipkin`. If you stop the `opencensusd`, example application will stop exporting. If you run it again, it will start exporting again.
+详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/opencensus-service%20%E6%BC%94%E5%8F%98.md#opencensus-agent-proto
 
 
 ----------
