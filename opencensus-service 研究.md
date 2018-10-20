@@ -40,11 +40,11 @@ OpenCensus service 正是用于消除上述约束；在使用 OpenCensus Service
 
 ### OpenCensus Agent
 
-详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-agent-1
+详见：[opencensus-agent](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-agent-1)
 
 ### OpenCensus Collector
 
-详见：https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-collector
+详见：[opencensus-collector](https://github.com/moooofly/MarkSomethingDownLLS/blob/master/OpenCensus%20Agent.md#opencensus-collector)
 
 
 ----------
@@ -53,64 +53,53 @@ OpenCensus service 正是用于消除上述约束；在使用 OpenCensus Service
 
 - server
 
-```
-# 编译+安装
-[#121#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service/cmd/opencensusd]$go build -v && go install
-[#122#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service/cmd/opencensusd]$ll /go/bin/opencensusd
--rwxr-xr-x 1 root root 18248976 Jul 30 20:13 /go/bin/opencensusd*
-[#123#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service/cmd/opencensusd]$date
-Mon Jul 30 20:13:54 CST 2018
+```sh
+[#301#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$git status
+On branch master
+Your branch is up-to-date with 'origin/master'.
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
 
-# 启动
-[#125#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service/cmd/opencensusd]$opencensusd
-2018/07/30 20:14:39 endpointFile path: /root/.config/opencensus.endpoint
+	modified:   cmd/ocagent/config.yaml
 
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+	stackdriver-moooofly-fa114f37b0b2.json
+
+no changes added to commit (use "git add" and/or "git commit -a")
+[#302#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$
+[#302#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$cat cmd/ocagent/config.yaml
+interceptors:
+    opencensus:
+        address: "127.0.0.1:55678"
+
+exporters:
+    stackdriver:
+        project: "stackdriver-moooofly"
+        enable_tracing: true
+
+    zipkin:
+        endpoint: "http://localhost:9411/api/v2/spans"
+
+zpages:
+    port: 55679
+[#303#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$
+[#303#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$
+[#303#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$rm bin/ocagent_linux && GOOS=linux go build -o bin/ocagent_linux ./cmd/ocagent
+[#304#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$
+[#304#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$GOOGLE_APPLICATION_CREDENTIALS=./stackdriver-moooofly-fa114f37b0b2.json ./bin/ocagent_linux -c cmd/ocagent/config.yaml
+2018/10/19 15:06:54 "stackdriver" trace-exporter enabled
+2018/10/19 15:06:54 "zipkin" trace-exporter enabled
+2018/10/19 15:06:54 Running OpenCensus interceptor as a gRPC service at "127.0.0.1:55678"
+2018/10/19 15:06:54 Running zPages at ":55679"
 ```
 
 - client
 
 ```
-[#61#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service/cmd/opencensusd]$OPENCENSUS_DEBUG=1 go run "$(go env GOPATH)/src/github.com/census-instrumentation/opencensus-service/example/main.go"
-Looking for the endpoint file
-Dialing [127.0.0.1:35246]...
-Sleeping for a minute...
-Exporting span [[{9b826b38005d0a8a8e692c2d2c63aaf1 f3ef0a9e888ea738 1}]]
-Exporting span [[{69d8cf7a7c892bf0642fdcb8be73238d 84ee8d1b4dfa55fc 1}]]
-Exporting span [[{9cae079607dd3d855e531c888e6b0fcc 15ed1099116604c0 1}]]
-Exporting span [[{88d8e385c354202f0ae926bee18abb12 a6eb9316d6d1b283 1}]]
-Exporting span [[{84b7718e3ab0fe464b98b11bc5e2d8a1 37ea16949a3d6147 1}]]
-Exporting span [[{7571fb807d592930390fc96c6549da4d c8e899115fa90f0b 1}]]
-Exporting span [[{47a6ff00127fef010bb63621b402282e 59e71c8f2315bece 1}]]
-Exporting span [[{0e0b6f2aee551d62a083b9eac90a4651 eae59f0ce8806c92 1}]]
-Exporting span [[{229c19b1140b6d91d5cedb1ce4bf44cc 7be4228aacec1a56 1}]]
-Exporting span [[{ae193dbcccd194bfce7b33f74a3a7741 0ce3a5077158c919 1}]]
-Exporting span [[{ec91248d8e8557fd4831594dcb48a45a 9de1288535c477dd 1}]]
-Exporting span [[{c0bd2050515e617f28d125dd1e70fa6d 2ee0ab02fa2f26a1 1}]]
-Exporting span [[{9f5f77627c0980953665d5ab9dd380fe bfde2e80be9bd464 1}]]
-Exporting span [[{d81fc8c55478f2dc7d6da7301ec242f2 50ddb1fd82078328 1}]]
-Exporting span [[{464afaa7b66820bf0224a4e3396cd489 e1db347b477331ec 1}]]
-Exporting span [[{2333b3b59d3ab96d35f493f81a47936e 72dab7f80bdfdfaf 1}]]
-Exporting span [[{e0cb0c87ad55d596374565529abac1f2 03d93a76d04a8e73 1}]]
-Exporting span [[{c875674ec14e1bfb157805fdf4204262 94d7bdf394b63c37 1}]]
-Exporting span [[{cbbf2316457c09ebb2eb83442d3b03af 25d640715922ebfa 1}]]
-Exporting span [[{9972a289097b23be4172cdd52e0f3687 b6d4c3ee1d8e99be 1}]]
-Exporting span [[{0371f63944fd28fb988915c24e755631 47d3466ce2f94782 1}]]
-Exporting span [[{ea2020503ff00035dbeb4f04f630597b d8d1c9e9a665f645 1}]]
-Exporting span [[{61d50bac6795b91da8d173b6fa358ae5 69d04c676bd1a409 1}]]
-Exporting span [[{5327a218b8f5211f9bcdeacd6867711a facecfe42f3d53cd 1}]]
-Exporting span [[{e5015fecaf1708629502b7b59022e851 8bcd5262f4a80191 1}]]
-Exporting span [[{a556214bfb0b2680a253eeb622dc0279 1cccd5dfb814b054 1}]]
-Exporting span [[{5041ddb6f5fe45ae78d4452e71d96415 adca585d7d805e18 1}]]
-Exporting span [[{97b6c1fd66449f434ae3dcab9b6a8e83 3ec9dbda41ec0cdc 1}]]
-Exporting span [[{b1f9e94c634ec4fc6bf07926d6e53f07 cfc75e580658bb9f 1}]]
-Exporting span [[{cb98a1e4998ae9d4b1d95dd22dc66e1b 60c6e1d5cac36963 1}]]
-Exporting span [[{df02b46fc1c1345c6ce16de386dc174b f1c464538f2f1827 1}]]
-Exporting span [[{b2c49c83ea58c29eefb486934a67f764 82c3e7d0539bc6ea 1}]]
-Exporting span [[{c84f092f05e080611507a5bf2bb5b324 13c26a4e180775ae 1}]]
-Exporting span [[{dd32e93aef7a494865f85679579294cd a4c0edcbdc722372 1}]]
-Exporting span [[{c901393172764a69190e896170870119 35bf7049a1ded135 1}]]
-Exporting span [[{d1652a3bf219fde7a260b75f8272847b c6bdf3c6654a80f9 1}]]
-...
+[#190#root@ubuntu-1604 /go/src/github.com/census-instrumentation/opencensus-service]$go run "$(go env GOPATH)/src/github.com/census-instrumentation/opencensus-service/example/main.go"
 ```
 
 ### 异常信息记录
