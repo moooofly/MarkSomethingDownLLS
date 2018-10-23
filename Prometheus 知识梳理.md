@@ -173,6 +173,26 @@ tar xvfz prometheus-*.tar.gz
 cd prometheus-*
 ```
 
+### 基于 Source 安装
+
+可以直接使用 go tool 下载并安装 prometheus 和 promtool 二进制文件到你的 GOPATH 中：
+
+```
+$ go get github.com/prometheus/prometheus/cmd/...
+$ prometheus --config.file=your_config.yml
+```
+
+你也可以先 clone 仓库，然后自己通过 make 命令进行构建：
+
+```
+$ mkdir -p $GOPATH/src/github.com/prometheus
+$ cd $GOPATH/src/github.com/prometheus
+$ git clone https://github.com/prometheus/prometheus.git
+$ cd prometheus
+$ make build
+$ ./prometheus --config.file=your_config.yml
+```
+
 ### 基于 Docker 安装
 
 Ref: https://github.com/prometheus/prometheus#docker-images
@@ -192,8 +212,8 @@ docker run -p 9090:9090 prom/prometheus
 
 小结：
 
-- 镜像同时存在于 https://quay.io/repository/prometheus/prometheus 和 https://hub.docker.com/u/prom/
-- 这里没有说明基于 docker 的方式下，如何定制化配置文件内容，详见 [docs/installation.md](https://github.com/prometheus/prometheus/blob/master/docs/installation.md) 中的说明；
+- 镜像同时存在于 [quay.io](https://quay.io/repository/prometheus/prometheus) 和 [Docker Hub](https://hub.docker.com/u/prom/) 中；
+- 这里没有说明基于 docker 的方式下，如何定**制化配置文件内容**，详见 [docs/installation.md](https://github.com/prometheus/prometheus/blob/master/docs/installation.md) 中的说明；
 
 
 ### 配置 Prometheus 监控自身
