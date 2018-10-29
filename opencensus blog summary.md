@@ -4,6 +4,10 @@
 
 > Apr 18, 2018
 
+基于输出 "Hello, world!" 的 web server 介绍了如何针对 HTTP 使用 opencensus 提供的东东；
+
+主要涉及导出到 Stackdriver/Prometheus/AWS X-Ray 的基础代码编写；
+
 ## [OpenCensus’s journey ahead: platforms and languages](https://opensource.googleblog.com/2018/05/opencensus-journey-ahead-part-1.html)
 
 > May 7, 2018

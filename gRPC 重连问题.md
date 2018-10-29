@@ -10,6 +10,30 @@
 - [gRPC Connectivity Semantics and API](#grpc-connectivity-semantics-and-api)
 - [Auto-reconnect for Go clients?](#auto-reconnect-for-go-clients)
 
+
+## 一个实际例子
+
+详见 [perform indefinite background reconnection attempts](https://github.com/census-ecosystem/opencensus-go-exporter-ocagent/commit/ea77d4d5284c1f9646daf88bed6937e50f0824bf)
+
+关键：
+
+- 定义不同状态 sDisconnected/sConnected ，并进行相应的判定和切换；
+- background 无限重连（重连超时 defaultConnReattemptPeriod 为 800 * time.Millisecond ）
+- 通过增加 jitter 避免同时 retry 造成类似 DDOS 的情况；
+- 当 TCP 连接出错后，通过上述无限循环重建连接，并在新连接上重建 stream ，而不是复用之前的 stream ；这里正是之前困扰我的地方（其实想通了很好理解）；
+
+
+```golang
+func (ae *Exporter) connect() error {
+  cc, err := ae.dialToAgent()
+  if err != nil {
+    return err
+  }
+  return ae.enableConnectionStreams(cc)
+}
+```
+
+
 ## [GRPC client reconnect inside kubenetes](https://stackoverflow.com/questions/39277063/grpc-client-reconnect-inside-kubenetes)
 
 问题：
