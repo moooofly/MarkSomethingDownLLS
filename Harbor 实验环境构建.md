@@ -40,7 +40,10 @@ The installation steps
 - [Configure `harbor.cfg`](https://github.com/vmware/harbor/blob/master/docs/installation_guide.md#configuring-harbor)
     - required parameters
     - optional parameters
-    - 主要是针对 HTTPS 的调整
+    - 主要调整以下内容：
+        - 针对 HTTPS 配置的调整（ui_url_protocol = https）
+        - 针对主机名的调整（hostname = 11.11.11.12）
+        - 针对证书的调整（ssl_cert = /data/cert/harbor_test.crt 和 ssl_cert_key = /data/cert/harbor_test.key）
 - [Configuring storage backend (optional)](https://github.com/vmware/harbor/blob/master/docs/installation_guide.md#configuring-storage-backend-optional)
     - By default, Harbor stores images on your local filesystem. 
     - In a production environment, you may consider using other storage backend instead of the local filesystem, like S3, OpenStack Swift, Ceph, etc. 
