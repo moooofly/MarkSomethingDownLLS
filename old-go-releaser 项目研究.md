@@ -215,6 +215,9 @@ upload
 - 每次对 `github.com/aktau/github-release` 强制更新似乎不太好；
 - build 的组合需要按需调整，并非所有；
 - 对仓库目录层级的隐式要求，表现为最终的 release 包名是固定的，不能随意指定（使用 https://github.com/goreleaser/goreleaser 时没有这个问题）；
+- release 的 description 段被强制增加了 "Built with: go version go1.11.1 linux/amd64 and caarlos0/go-releaser"；另外，整体格式也不是特别友好；
+- 存在 "go get: warning: modules disabled by GO111MODULE=auto in GOPATH/src" 相关告警；
+
 
 ## 试用
 
