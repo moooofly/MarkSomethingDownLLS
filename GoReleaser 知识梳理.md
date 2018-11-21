@@ -1,12 +1,15 @@
-# GoReleaser 知识梳理
+# goreleaser 项目研究
 
-Ref:
 
-- https://github.com/goreleaser/goreleaser
-- https://goreleaser.com/
-- https://github.com/goreleaser/old-go-releaser
-- https://github.com/goreleaser/goreleaser/blob/master/Dockerfile
-- https://raw.githubusercontent.com/caarlos0/go-releaser/master/release
+| key | value |
+| -- | -- |
+| 项目名称 | goreleaser |
+| 地址 | https://github.com/goreleaser/goreleaser  |
+| 实现语言 | golang |
+| 一句话描述 | Deliver Go binaries as fast and easily as possible |
+| 详细说明 | <br> 1. GoReleaser builds Go binaries for several platforms, creates a GitHub release and then pushes a Homebrew formula to a tap repository. <br> 2. All that wrapped in your favorite CI. |
+| 相关链接 | https://goreleaser.com/ |
+| 调研日期 | 2018-11-21 |
 
 
 ----------
@@ -17,18 +20,26 @@ Ref:
 
 ```
 # 1. 编写 go 程序
+
 # 2. 生成 .goreleaser.yaml 文件
 goreleaser init
+
 # 3. 修改 .goreleaser.yaml 文件
+
 # 4. 创建 GITHUB_TOKEN 并导出
 export GITHUB_TOKEN='YOUR_TOKEN'
+
 # 5. 执行 git add/commit
+
 # 6. 为当前 commit 打 tag
 git tag -a v0.1.0 -m "xxx"
+
 # 7. 启用 GO111MODULE
 export GO111MODULE=on
+
 # 8. 以 dry run 模式运行
 goreleaser release --rm-dist --skip-publish
+
 # 9. 以 real 模式运行
 goreleaser release --rm-dist
 ```

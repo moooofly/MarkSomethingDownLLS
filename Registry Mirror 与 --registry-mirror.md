@@ -5,11 +5,11 @@
 - Registry 中包含一个或多个 Repository ；
 - Repository 中包含一个或多个 Image ；
 - Image 用 GUID 标识，有一个或多个 Tag 与之关联；
-- index.docker.io 其实这里是一个 Index Server ，和 Registry 有区别；
+- index.docker.io 其实是一个 Index Server ，和 Registry 有区别；
 - **配置 Registry Mirror 之后，Docker 拉取镜像的过程**：Docker CLI 会试图获得授权，例如会向 https://index.docker.io/v1 请求认证，认证完成后，认证服务器会返回一个对应的 Token 。注意，这里用户认证与配置的 Registry Mirror 完全无关，这样我们就不用担心使用 Mirror 的安全问题了；
 - 不幸的是，**Docker Hub 并没有在国内放服务器或者用国内的 CDN** ；为了克服跨洋网络延迟，一般有两个解决方案：一是使用**私有 Registry** ，另外是使用 **Registry Mirror** ；
-    - 方案一：就是搭建或者使用现有的私有 Registry ，通过定期和 Docker Hub 同步热门的镜像，私有 Registry 上保存了一些镜像的副本，然后大家可以通过 `docker pull private-registry.com/user-name/ubuntu:latest`，从这个私有 Registry 上拉取镜像。因为这个方案需要定期同步 Docker Hub 镜像，因此它比较适合于使用的镜像相对稳定，或者都是私有镜像的场景。而且用户需要显式的映射官方镜像名称到私有镜像名称，私有 Registry 更多被大家应用在企业内部场景。私有 Registry 部署也很方便，可以直接在 Docker Hub 上下载 Registry 镜像，即拉即用，具体部署可以参考官方文档。
-    - 方案二：是使用 Registry Mirror ，它的原理类似于缓存，如果镜像在 Mirror 中命中则直接返回给客户端，否则从存放镜像的 Registry 上拉取并自动缓存在 Mirror 中。最酷的是，是否使用 Mirror 对 Docker 使用者来讲是透明的，也就是说在配置 Mirror 以后，大家可以仍然输入 `docker pull ubuntu` 来拉取 Docker Hub 镜像，除了速度变快了，和以前没有任何区别。
+    - 方案一：搭建或者使用现有的私有 Registry ，通过定期和 Docker Hub 同步热门的镜像，私有 Registry 上保存了一些镜像的副本，然后大家可以通过 `docker pull private-registry.com/user-name/ubuntu:latest`，从这个私有 Registry 上拉取镜像。因为这个方案需要定期同步 Docker Hub 镜像，因此它比较适合于使用的镜像相对稳定，或者都是私有镜像的场景。而且用户需要显式的映射官方镜像名称到私有镜像名称，私有 Registry 更多被大家应用在企业内部场景。私有 Registry 部署也很方便，可以直接在 Docker Hub 上下载 Registry 镜像，即拉即用，具体部署可以参考官方文档。
+    - 方案二：使用 Registry Mirror ，它的原理类似于缓存，如果镜像在 Mirror 中命中则直接返回给客户端，否则从存放镜像的 Registry 上拉取并自动缓存在 Mirror 中。最酷的是，是否使用 Mirror 对 Docker 使用者来讲是透明的，也就是说在配置 Mirror 以后，大家可以仍然输入 `docker pull ubuntu` 来拉取 Docker Hub 镜像，除了速度变快了，和以前没有任何区别。
 
 
 ----------
