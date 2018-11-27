@@ -1,5 +1,6 @@
 # cadvisor 调试记录
 
+将 cadvisor 二进制程序 scp 到 remote host 后，启动 cadvisor ，再执行 integration test 过程中抓取到的信息
 
 ```
 root@harbor-service-new-stag:/opt/apps# ps auxf | grep cadvisor
@@ -10,21 +11,13 @@ root     13668  4.6  0.2 748808 43496 ?        Sl   08:06   0:01              \_
 ```
 
 
-
-The GORACE environment variable sets **race detector options**. The format is:
+- The `GORACE` environment variable sets **race detector options**. The format is:
 
 ```
 GORACE="option1=val1 option2=val2"
 ```
 
 - `halt_on_error` (default 0): Controls whether the program exits after reporting first data race.
-
-sudo GORACE='halt_on_error=1' /tmp/cadvisor-26153/cadvisor --port 9100 --logtostderr --docker_env_metadata_whitelist=TEST_VAR  &> /tmp/cadvisor-26153/log.txt
-
-
-go test --timeout 15m0s github.com/google/cadvisor/integration/tests/... --host stag-reg.llsops.com --port 9100 --ssh-options ""
-
-
 
 
 
