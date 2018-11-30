@@ -1,10 +1,433 @@
-# AWS 案例
+# AWS 网络类案例
 
 ## 目录
 
+- [这个 ELB 有一个 IP 不 work 了](#这个-elb-有一个-ip-不-work-了)
+- [中国移动的网络连通性的问题](#中国移动的网络连通性的问题)
+- [如何查看 ELB 的内网 ip](如何查看-elb-的内网-ip)
+- [想了解AWS的移动线路能力](#想了解aws的移动线路能力)
+- [天津部分用户连接超时](#天津部分用户连接超时)
 - [一些海外用户无法正常访问 ELB](#一些海外用户无法正常访问-elb)
 - [用户请求不到 ELB](#用户请求不到-elb)
 - [用户反馈手机通过 wifi 访问服务超时，切换到移动网络就可以](#用户反馈手机通过-wifi-访问服务超时切换到移动网络就可以)
+
+
+## 这个 ELB 有一个 IP 不 work 了
+
+> ref: https://console.amazonaws.cn/support/v1#/case/?displayId=1383225384&language=zh
+
+### 0x01 提供的信息
+
+internal ELB 对一个两个 ip 地址
+
+```
+$ dig internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn
+
+; <<>> DiG 9.9.5-3ubuntu0.2-Ubuntu <<>> internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 39947
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+;; QUESTION SECTION:
+;internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. IN A
+
+;; ANSWER SECTION:
+internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. 60 IN A 172.1.51.93
+internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. 60 IN A 172.1.57.214
+```
+
+其中一个 ip 是不通的
+
+```
+ubuntu@ip-172-31-14-3:~$ telnet 172.1.51.93 80
+Trying 172.1.51.93...
+telnet: Unable to connect to remote host: Connection refused
+
+
+ubuntu@ip-172-31-14-3:~$ telnet 172.1.57.214 80
+Trying 172.1.57.214...
+Connected to 172.1.57.214.
+Escape character is '^]'.
+^]
+
+telnet> q
+Connection closed.
+
+
+ubuntu@ip-172-31-14-3:~$ telnet 172.1.51.93 80
+Trying 172.1.51.93...
+telnet: Unable to connect to remote host: Connection refused
+```
+
+ELB FQDN(s): a87dff023241411e7b48102ab8baa063
+
+### 0x02 分析
+
+> 分析过程：
+> 
+> 帮您检查了一下，ELB 今天由于流量下降有 ScaleDown 的行为，从 ELB 的状态来看，目前暂未发现异常信息，应该能正常提供服务才对。
+> 
+> 刚才再次检查发现 ELB IP 发生了变化，目前为 172.1.54.246，172.1.51.93，从您刚才测试 IP 地址 172.31.14.3 来看，虽然跨 VPC 访问 ELB ，但应该是能访问的。
+> 
+> 不知您能否再用 `telnet` 或 `nc -vz 172.1.51.93 80` 测试一下? 如果可以的话能否在您 172.1.51.144 这台机器上验证一下？
+
+要点：
+
+- ELB 由于流量下降有 ScaleDown 的行为（这里的问题是：后续看仍旧存在两个 ip 地址，是否说明又 ScaleUp 回来了？）
+- 测试命令的使用：
+    - `telnet xxx.xxx.xxx.xxx 80`
+    - `nc -vz xxx.xxx.xxx.xxx 80`
+- aws 建议在不跨 VPC 的机器上再次测试；
+
+
+### 0x03 信息补充
+
+> 现在确实是通了（这里指的是 `curl` ELB 的域名）。不过并不是因为 IP 发生变化而恢复的吧，因为 172.1.51.93 这个 ip 是没变的。另外，我是在 172.31.14.3 这台机器上测试的。
+> 
+> 虽然现在看上去是恢复了，但为啥会出现这个问题呢？怎么感觉 ELB 很不靠谱呢？
+> 
+> 还有一个问题是，我们一开始用 ELB 的 DNS 对这个 ELB 进行 `curl` 的时候发现一直都是正常的，但对 ip 却不行。这个是说明 ELB 本身会做一些处理吗？ 但问题是 DNS 却没有及时更新。麻烦这个解释一下吧
+> 
+> `curl` 的那个也有问题，但自己处理了
+
+```
+$ curl -v internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn/api/v1/cc/mine
+* Hostname was NOT found in DNS cache
+*   Trying 172.1.51.93...
+* connect to 172.1.51.93 port 80 failed: Connection refused
+*   Trying 172.1.57.214...
+* Connected to internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn (172.1.57.214) port 80 (#0)
+> GET /api/v1/cc/mine?appVer=6 HTTP/1.1
+> User-Agent: curl/7.35.0
+> Host: internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn
+> Accept: */*
+>
+< HTTP/1.1 420 CUSTOM
+< Cache-Control: no-cache
+< Content-Language: en
+< Content-Type: application/json
+< Vary: Origin
+< X-Login: 0
+< X-Request-Id: 95837d8e-fe27-4e4e-afbc-20078169ca0b
+< X-Runtime: 0.006138
+< Content-Length: 28
+< Connection: keep-alive
+<
+* Connection #0 to host internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn left intact
+```
+
+要点：
+
+- `curl` 在针对域名进行处理时的逻辑：先进行 DNS 域名解析，然后针对解析的结果 ip 地址（可能多个），逐一进行 curl 操作（从上面的日志中可以看出，先访问了 172.1.51.93 失败，然后访问了 172.1.57.214 成功）；
+
+
+### 0x04 分析
+
+> 经进一步检查，ELB: internal-a87dff023241411e7b48102ab8baa063 在今天 11:41 触发了 ScaleDown ，之后 ELB 将节点进行了替换。在正常情况下，替换的节点在正常提供服务之后，老的节点退出服务，替换过程不会中断业务流量。
+>
+> 但今天这个 ELB 替换的节点 172.1.51.93 虽然成功启动了，但转发流量有些问题，从而您在 `telnet` 或 `curl` 测试时，无法正确的访问，在一段时间之后 ELB 自动监测到问题并更新了状态，才正常的提供服务。 
+>
+> 如电话中沟通，我已将这个问题以及您的测试结果提供给后台团队。后台团队已将ELB的节点做了替换，目前所有ELB节点暂时正常，对于出问题的节点，后台团队会继续调查，在收到相关调查结果后，我们会及时回复您。
+>
+> 非常抱歉对于 ELB: internal-a87dff023241411e7b48102ab8baa063-1424689483 出现的一个 IP 不能接受请求的问题，经后台团队反复排查暂还不能确定问题原因，因为这个问题在出现一个小时左右之后又恢复了，而目前还无法复现这个问题，以至于无法深入的排查。建议您如果再次遇到这个问题的话可以联系我们，我们会请求后台团队再次协助调查分析。
+
+### 0x05 新的情况
+
+刚刚 9:25 左右，我们 ELB 前边的 tengine（nginx）出现很大 error
+
+```
+2017/08/14 13:25:49 [error] 11020#0: *182655034 no live upstreams while connecting to upstream, client: 172.31.1.12, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11020#0: *182655034 no live upstreams while connecting to upstream, client: 172.31.1.12, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11016#0: *182650101 no live upstreams while connecting to upstream, client: 172.31.1.12, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11016#0: *182650101 no live upstreams while connecting to upstream, client: 172.31.1.12, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11015#0: *182654303 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request:
+2017/08/14 13:25:49 [error] 11017#0: *182659258 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request:
+2017/08/14 13:25:49 [error] 11015#0: *182654655 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11017#0: *182655522 no live upstreams while connecting to upstream, client: 172.31.1.12, server: apineo.llsapp.com, request:
+2017/08/14 13:25:49 [error] 11016#0: *182653016 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request:
+2017/08/14 13:25:49 [error] 11016#0: *182653021 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request: 
+2017/08/14 13:25:49 [error] 11016#0: *182653024 no live upstreams while connecting to upstream, client: 172.31.133.151, server: apineo.llsapp.com, request: 
+```
+
+随后我们收到一些报警，查看的时候发现新的 ELB ip 是两个不同的
+
+```
+$ dig internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn
+
+; <<>> DiG 9.9.5-3ubuntu0.2-Ubuntu <<>> internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 58112
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+;; QUESTION SECTION:
+;internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. IN A
+
+;; ANSWER SECTION:
+internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. 26 IN A 172.1.56.177
+internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.com.cn. 26 IN A 172.1.45.9
+
+;; Query time: 0 msec
+;; SERVER: 172.31.0.2#53(172.31.0.2)
+;; WHEN: Mon Aug 14 13:39:16 UTC 2017
+;; MSG SIZE  rcvd: 145
+```
+
+这两个 ip 都是通的（跟上次不太一样）。之后 reload tengine(nginx) 解决。看起来是 tengine 没有及时更新，以及 ELB 同时两台都有问题，导致 tengine 没来得及切换？ （如果只是一台的话，应该还能等另外一个 ip 失效？）
+
+麻烦帮忙看看 9:20-9:50 的时候 ELB 背后的机器状态？
+
+
+### 0x06 新情况分析
+
+> 经过 Review 您的 CLB (Classic LB) ，我注意到在 2017-08-14 13:25 UTC (21:25 UTC+8) 的时候，两个老的 ELB 节点被停止了，这应该是导致您观察到 tengine 出错的原因。
+> 
+> 但整个过程是这样的：
+>
+> - 2017-08-14 11:52:54 UTC: CLB ScaleUp ，在这个过程中，两个新的（更大的）ELB 节点 172.1.56.177 和 172.1.45.9 被加入 ELB 的 DNS ，而两个老的节点 IP 172.1.56.212, 172.1.39.190 被从 ELB 的 DNS 中移除。
+> - 由于 **ELB 采用一种叫 Graceful Shutdown 的机制**，我们在从 DNS 上移除老的节点后，由于节点上可能有未完成的连接/请求，我们并不会直接终止节点，而是保留节点运行一段时间后再终止。
+> - 接下来，在 2017-08-14 13:25:20 UTC ，老的节点 172.1.56.212, 172.1.39.190 被终止。这也就解释了为什么您在 tengine 上看到有错误；重启 tengine 后，由于 tengine 会重新进行 DNS 解析，故可以拿到新 ELB 节点的 IP ，因此您此时发现 nginx 访问两个新的节点都是正常的。
+> - 同时，我会建议您检查 tengine 的 upstream 的配置。因为原生的 Nginx，在配置 upsteam 的时候，如果不使用变量，那么在给 upstream 的 BE 发请求时，是不会重新解析 IP 地址的，而只会在 Nginx 启动时进行一次 DNS 解析，之后则一直使用一开始得到的 IP 地址；我猜想，您的 tengine 遇到的问题可能和这个有关。
+> - 针对这个问题，Nginx 的解决方案是配置变量，并将 upstream 指向这个变量。更详细的信息您可以参考以下文档：https://tenzer.dk/nginx-with-dynamic-upstreams/
+> - 在 ELB scale up 之后，解析得到的 IP 还是两个，新的节点加入 DNS ，而旧的会被移除。不会出现解析到 4 个 ELB ip 地址的情况；
+
+要点：
+
+- ELB scaleup 的逻辑；
+- tengine (nginx) 支持 dynamic upstreams 方式基于 ip 地址变更问题；
+- ELB 通过 Graceful Shutdown 机制关停节点时，若节点上可能有未完成的连接/请求，则会保留节点运行一段时间后再终止；换那句话说，如果未完成的连接/请求很多，则一定会触发 nginx (tengine) 上的报错；之后基于 dynamic upstreams 机制完整新 ip 地址的获取；
+
+
+### 0x07 信息补充
+
+我们看了晚上那段时间的 log，发现 8 点左右，流量已经都从老的 ELB 进入新的 ELB 了。
+
+图一是查询 nginx upstream 日志中老的 ELB 的，到 8 点就没有了；
+
+![Kibana - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Kibana%20-%201.png)
+
+图二是查询新的 ELB 的日志，从 8 点开始，一直持续到 11 点左右，而且 9 点半左右明显有个低峰，应该就是出事故的时候；
+
+![Kibana - 2](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Kibana%20-%202.png)
+
+图三是对图二进行放大后的、出事故时的图
+
+![Kibana - 3](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/Kibana%20-%203.png)
+
+
+可以看到 9:25 到 9:40（估计就是我 reload tengine 的时候），是完全没有流量的，再结合详细日志会看到很多 502：
+
+```
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" GET /api/v1/cc/learning_goals/status? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" GET /api/v1/cc/learning_goals/status? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.1.12 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.1.12 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.1.12 apineo.llsapp.com "0.000" GET /api/v1/cc/mine? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup? HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.1.12 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup HTTP/1.1 502 "neo-cc"
+2017-08-14T13:25:49+00:00 172.31.133.151 apineo.llsapp.com "0.000" POST /api/v1/cc/answerup HTTP/1.1 502 "neo-cc"
+
+```
+
+### 0x08 新情况分析
+
+> 我们再次 review 了您的 ELB ，发现昨天 21:26pm-21:38pm 这段时间，172.1.56.177 和 172.1.45.9 接收到的平均流量为 6.28KiB/s ，这个流量基本上是对您 63 个后端实例做健康检查的流量的量级。另外，同时段 HTTPCode_ELB_5XX 的值为 0 ，从这两点大致判断，这段时间两个节点没有接收到来自 tengine 的流量。
+>
+> 我注意到您开启了 ELB access log ，要进一步确认的话，您可以调取这段时间的 ELB access log ，看一下是否有收到来自 tengine 的流量的记录，以及量级。
+> 
+> 我们对这两个 ELB 节点的网络指标（丢包／延迟等）进行了检查，这段时间都是正常的。且这段时间，两个节点的 CPU 利用率也瞬间降低到 0.8% 左右，这也从侧面说明这两个节点没有大量流量需要处理，处于较为空闲的状态。
+>
+> 在 21:38pm ，两个节点的 CPU 利用率，入网流量等同时同步飙升。这个时间点唯一发生的变量是您执行了 tengine 的 reload 动作，综合这些信息，我们怀疑问题是发生在 tengine 上，但是具体是 tengine 上发生了什么导致的这个问题，基于目前的日志和数据无法判断。
+>
+> 目前可以确定的是，172.1.56.177 和 172.1.45.9 在 14 号 21:26pm-21:38pm 这段时间突然没有接收到流量，和已经退出使用的两个老节点 172.1.56.212／172.1.39.190 没有关系，且这两个新节点在这段时间本身也没有发现异常。
+> 
+> 我们建议您把排查的重点放在 tengine 服务器上。如果这个问题再次复现的话，在 tengine 这台服务器上对 ELB 做下抓包，结合 ELB 的 access log ，我们可以判断一下流量是否有发出去，以及如果没有发出去，大概是什么原因造成的。同时不要急于 reload ，（而是要）检查 tengine 服务（和服务器）的运行状况，看是否有什么报错记录或异常发生。
+>
+> 当然，也请您及时联系我们，我们会同时从后台对 ELB 进行检查。
+>
+> 如之前工程师的建议，如果该问题再次出现的话，可以结合 ELB 的 access log，判断一下 ELB 是否有收到前端的流量以及量级。或者是结合抓包看一下前端所请求的 IP 是否是 ELB ScaleUp 之后的 IP 。当然您也可以随时联系我们，我们会同时从后台对协助进行检查。
+
+
+要点：
+
+- 平均流量 6.28 KiB/s 基本上对应 63 个后端实例做健康检查的流量的量级；即每个后端实例健康检查的流量在 0.1 KiB/s 左右；
+- `HTTPCode_ELB_5XX` 是一个需要关注的指标；
+- ELB access log 是一个需要关注的文件；需要自行开启；
+- ELB 节点需要关注的指标：
+    - 丢包
+    - 延迟
+    - CPU
+
+
+## 中国移动的网络连通性的问题
+
+### 0x01 提供的信息
+
+腾讯华佗诊断分析系统
+
+### 0x02 分析
+
+根据后台团队的排查结果，我们能够确定**问题出现在上海市的中国移动运营商网络内**，具体可以参考附件中的截图。
+
+我们会就这个问题向相应运营商进行投诉。同时，根据以往经验，来自最终用户的直接投诉在运营商处理时更为有效。因此我们建议您使用工信部电信用户申诉的方式进行投诉，具体过程如下：
+
+1. 打开工信部电信用户申诉受理中心网站： http://www.chinatcc.gov.cn:8080/cms/shensus/
+2. 填写必填信息，其中申诉问题涉及号码需要提供出现这个问题时使用的号码。
+3. 在申诉内容中，将我们之前的分析结果和数据（比如 `mtr`/`traceroute` 等）提交上去。
+
+申诉提交后，被投诉运营商会在数个工作日内联系投诉者，您可以详细的描述您的问题，并要求提供一个邮箱，将我们之前的分析过程、结论、数据及如何解决都发送给运营商。
+
+我们也会进一步和相关运营商沟通改善网络质量。感谢您的理解和支持。
+
+
+
+## 如何查看 ELB 的内网 ip
+
+> ref: https://console.amazonaws.cn/support/v1#/case/?displayId=1407748164&language=zh
+
+### 0x01 提供的信息
+
+我们在 ELB 的后端实例上看到一些日志中包含的 ip 地址，怀疑是 ELB 的 ip 地址，但因为查不到 ELB 自身的 ip，所以不能很好定位问题。
+
+比如如何根据 ELB 的 DNS 查内网 ip（特别是 internet-facing 的），如何根据内网 ip 来查到具体是哪个 ELB ；
+
+### 0x02 分析
+
+- 对于内部 ELB ，您直接 dig 这个 ELB 的 DNS 域名就可以的得出它的内部 IP 地址；
+- 对于面向互联网的 ELB ，您只能得到它的公网 IP ，无法得到私网 IP ；
+- 如果这个节点已经退出服务，即便是内部的 ELB 您也是查询不到这个 IP 的；
+
+所以最保险的方式，是您有分析需求的时候，及时联系我们帮您确定 IP 。需要注意的是一定要及时联系，因为我们这边的记录保留的时间也有限，如果时间过久也就查不到了。
+
+还有一个思路，因为 ELB 是和后端实例在同一个 VPC 的，您可以关注一下这些不能确定身份的 IP 地址所归属的网段是否是这个 VPC 的网段，如果是的话，并且您也没有其他内部实例访问后端服务器的话，则比较可能是 ELB 的节点 IP 。当然这种方式只能用来大致判断，不能 100% 确定。
+
+```
+root@harbor-prod:~# dig neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn.
+
+; <<>> DiG 9.10.3-P4-Ubuntu <<>> neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn.
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 56017
+;; flags: qr rd ra; QUERY: 1, ANSWER: 8, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+;; QUESTION SECTION:
+;neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. IN A
+
+;; ANSWER SECTION:
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 54.222.222.173
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 52.80.63.136
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 52.80.92.163
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 52.80.202.80
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 52.81.3.221
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 54.222.158.246
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 54.222.194.182
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 18 IN A 54.222.221.90
+
+;; Query time: 1 msec
+;; SERVER: 172.31.0.2#53(172.31.0.2)
+;; WHEN: Thu Nov 29 10:47:59 UTC 2018
+;; MSG SIZE  rcvd: 215
+
+root@harbor-prod:~#
+```
+
+
+## 想了解AWS的移动线路能力
+
+### 0x01 提供的信息
+
+我们有很多移动用户反馈网络问题，想知道 AWS 对移动线路的优化等；
+
+### 0x02 分析
+
+AWS 中国区和中国国内的主要运营商均采用 BGP 互联。依靠 BGP 动态路由协议的选路规则选择最优路径进行数据传输。
+
+流量会根据目的地址动态的选择最优路径。因此，对于分布在 AWS 中国区所、直连中国国内主要运营商的终端，能够直接访问到 AWS 资源而不需要经过多个运营商转发。
+
+由于不知道您提到的“移动用户反馈网络问题”具体的现象以及发生时间和地点，我们还无法深入的分析原因。
+
+如果您发现访问异常的情况，我们建议您提供问题发生的时间点和具体现象、通信双方公网 IP 地址和双向 `mtr`/`traceroute` ，我们会帮助您进一步定位问题所在。
+
+
+## 天津部分用户连接超时
+
+> ref: https://console.amazonaws.cn/support/v1#/case/?displayId=1413946414&language=zh
+
+### 0x01 提供的信息
+
+我们收到天津的部分用户反馈说，连不上我们的服务 apineo.llsapp.com ，这个是 CNAME 到 ELB: neo-app-prod-elb 的。
+
+> 这里的 dig 是由我后续补充的，为了确认 apineo.llsapp.com CNAME 到 neo-app-prod-elb 的事实，因此，这里给出的 ip 地址和 case 中是不同的；
+
+```
+root@harbor-prod:~# dig apineo.llsapp.com
+
+; <<>> DiG 9.10.3-P4-Ubuntu <<>> apineo.llsapp.com
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 49277
+;; flags: qr rd ra; QUERY: 1, ANSWER: 9, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+;; QUESTION SECTION:
+;apineo.llsapp.com.		IN	A
+
+;; ANSWER SECTION:
+apineo.llsapp.com.	60	IN	CNAME	neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn.
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 54.222.222.173
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 54.223.19.202
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 54.223.26.218
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 52.80.92.163
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 52.80.116.82
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 52.80.150.13
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 54.222.142.31
+neo-app-prod-elb-936082747.cn-north-1.elb.amazonaws.com.cn. 60 IN A 54.222.221.90
+
+;; Query time: 5 msec
+;; SERVER: 172.31.0.2#53(172.31.0.2)
+;; WHEN: Thu Nov 29 09:24:24 UTC 2018
+;; MSG SIZE  rcvd: 246
+
+root@harbor-prod:~#
+```
+
+比如，通过我们在客户端收集到的 log 显示，用户在 2:15-2:20 的时候连接这几个 IP 有问题
+
+- 54.222.177.24
+- 52.80.9.251
+- 54.223.59.254
+- 52.80.63.144
+- 52.80.208.1
+
+这几个 IP 应该都是 ELB 的 IP
+
+ELB FQDN(s): neo-app-prod-elb
+
+
+### 0x02 分析
+
+> 请问您说的时间 2:15-2:20 是指北京时间 14:15-14:20 吧？
+>
+> 我查看了 ELB 今天的状态和处理的流量，在今天 14:15-14:20，并没有特殊的情况发生。
+>
+> 后续步骤：
+>
+> 你提供的 5 个 IP 都是 ELB: neo-app-prod-elb 的 IP。为进一步排查问题，我们需要跟您收集以下信息
+>
+> 1. 请问用户连不上的现象是什么？是否有相应的截图？
+> 2. 是否可以把客户端收集到的 log 发送给我们？是否可以提供一下用户的公网 IP？
+> 3. 我看到您这边启用了 ELB 的 AccessLog，请您提供一下今天的 ELB 的 AccessLog 。
 
 
 ## 一些海外用户无法正常访问 ELB
