@@ -2,6 +2,7 @@
 
 ## 目录
 
+- [网络访问不通](#网络访问不通)
 - [有些机器访问这台机器的网络有问题](#有些机器访问这台机器的网络有问题)
 - [这个 ELB 有一个 IP 不 work 了](#这个-elb-有一个-ip-不-work-了)
 - [中国移动的网络连通性的问题](#中国移动的网络连通性的问题)
@@ -11,6 +12,246 @@
 - [一些海外用户无法正常访问 ELB](#一些海外用户无法正常访问-elb)
 - [用户请求不到 ELB](#用户请求不到-elb)
 - [用户反馈通过 wifi 访问服务超时切换到移动网络就可以](#用户反馈通过-wifi-访问服务超时切换到移动网络就可以)
+
+
+## 网络访问不通
+
+### 0x01 提供的信息
+
+我们有一组服务器，都是通过 ASG 启动的，然后出现其中**某台机器访问其他机器出现网络不通**的情况，影响服务使用了。
+
+服务访问方向：从 172.31.3.181 到 172.31.4.7 ；
+
+Instance ID(s): i-09c912e97202d362e
+
+DestInstance: i-05aad72abaef941db （这个不知道干啥的，应该和 172.31.4.7 对应）
+
+source instance tcpdump result:
+
+```
+deployer@neo-unicorn-production-i-09c912e97202d362e:~$ sudo tcpdump -iany -n port 50056
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 65535 bytes
+22:16:44.208589 IP 172.17.0.2.56149 > 172.31.4.7.50056: Flags [S], seq 977579851, win 29200, options [mss 1460,sackOK,TS val 1757952 ecr 0,nop,wscale 7], length 0
+22:16:44.208589 IP 172.17.0.2.56149 > 172.31.4.7.50056: Flags [S], seq 977579851, win 29200, options [mss 1460,sackOK,TS val 1757952 ecr 0,nop,wscale 7], length 0
+22:16:44.208619 IP 172.31.3.181.56149 > 172.31.4.7.50056: Flags [S], seq 977579851, win 29200, options [mss 1460,sackOK,TS val 1757952 ecr 0,nop,wscale 7], length 0
+22:16:44.212623 IP 172.17.0.2.57918 > 172.31.4.7.50056: Flags [S], seq 4221984651, win 29200, options [mss 1460,sackOK,TS val 1757953 ecr 0,nop,wscale 7], length 0
+22:16:44.212623 IP 172.17.0.2.57918 > 172.31.4.7.50056: Flags [S], seq 4221984651, win 29200, options [mss 1460,sackOK,TS val 1757953 ecr 0,nop,wscale 7], length 0
+22:16:44.212656 IP 172.31.3.181.57918 > 172.31.4.7.50056: Flags [S], seq 4221984651, win 29200, options [mss 1460,sackOK,TS val 1757953 ecr 0,nop,wscale 7], length 0
+22:16:44.368623 IP 172.17.0.2.57796 > 172.31.4.7.50056: Flags [S], seq 1269496312, win 29200, options [mss 1460,sackOK,TS val 1757992 ecr 0,nop,wscale 7], length 0
+22:16:44.368623 IP 172.17.0.2.57796 > 172.31.4.7.50056: Flags [S], seq 1269496312, win 29200, options [mss 1460,sackOK,TS val 1757992 ecr 0,nop,wscale 7], length 0
+22:16:44.368656 IP 172.31.3.181.57796 > 172.31.4.7.50056: Flags [S], seq 1269496312, win 29200, options [mss 1460,sackOK,TS val 1757992 ecr 0,nop,wscale 7], length 0
+22:16:44.832626 IP 172.17.0.2.57262 > 172.31.4.7.50056: Flags [S], seq 1166513484, win 29200, options [mss 1460,sackOK,TS val 1758108 ecr 0,nop,wscale 7], length 0
+22:16:44.832626 IP 172.17.0.2.57262 > 172.31.4.7.50056: Flags [S], seq 1166513484, win 29200, options [mss 1460,sackOK,TS val 1758108 ecr 0,nop,wscale 7], length 0
+```
+
+dest instance tcpdump result:
+
+```
+deployer@ha-grpc:~$ sudo tcpdump -iany -n host 172.31.3.181 and port 50056
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 262144 bytes
+14:23:46.543937 IP 172.31.3.181.57350 > 172.31.4.7.50056: Flags [S], seq 2678534191, win 29200, options [mss 1460,sackOK,TS val 1863533 ecr 0,nop,wscale 7], length 0
+14:23:46.543948 IP 172.31.4.7.50056 > 172.31.3.181.57350: Flags [S.], seq 19200831, ack 2678534192, win 26847, options [mss 8961,sackOK,TS val 1995048235 ecr 1863533,nop,wscale 7], length 0
+14:23:46.910846 IP 172.31.4.7.50056 > 172.31.3.181.57039: Flags [S.], seq 4259908341, ack 2822210565, win 26847, options [mss 8961,sackOK,TS val 1995048327 ecr 1861875,nop,wscale 7], length 0
+14:23:46.920143 IP 172.31.3.181.57039 > 172.31.4.7.50056: Flags [S], seq 2822210564, win 29200, options [mss 1460,sackOK,TS val 1863628 ecr 0,nop,wscale 7], length 0
+14:23:46.920150 IP 172.31.4.7.50056 > 172.31.3.181.57039: Flags [S.], seq 4259908341, ack 2822210565, win 26847, options [mss 8961,sackOK,TS val 1995048329 ecr 1861875,nop,wscale 7], length 0
+14:23:47.084121 IP 172.31.3.181.57230 > 172.31.4.7.50056: Flags [S], seq 2982201214, win 29200, options [mss 1460,sackOK,TS val 1863669 ecr 0,nop,wscale 7], length 0
+14:23:47.084128 IP 172.31.4.7.50056 > 172.31.3.181.57230: Flags [S.], seq 2733106116, ack 2982201215, win 26847, options [mss 8961,sackOK,TS val 1995048370 ecr 1862918,nop,wscale 7], length 0
+```
+
+正如上面所示，一直在建立 TCP 连接，但是始终不成功。
+
+### 0x02 分析
+
+客户问题：
+
+客户的一台挂载在 ELB 后面的通过自动伸缩组 ASG 启动的实例 i-09c912e97202d362e (172.31.3.181) 在访问另一个子网的实例 172.31.4.7 出现如下情况：
+
+通过抓包工具能够发现，实例 i-09c912e97202d362e 172.31.3.181 向 172.31.4.7 发出了 syn 包，实例 172.31.4.7 收到了 syn 包并发回了 syn+ack ，但是实例 i-09c912e97202d362e 172.31.3.181 并没有收到 syn+ack ，导致无法建立连接。
+
+问题分析：
+
+您好， 通过与您在电话中的沟通。我们目前可能需要如下信息，来进一步定位问题。
+
+1. 后端服务器 172.31.4.7 的实例名（发现已经提供）
+2. 两台服务器分别 traceroute 的结果
+3. 两台服务器的 route 路由表信息
+4. 两台服务器的抓包信息（发现已提供）
+
+### 0x03 信息补充
+
+Source:
+
+```
+deployer@neo-unicorn-production-i-09c912e97202d362e:~$ traceroute6 172.31.4.7
+traceroute: unknown host 172.31.4.7
+```
+
+route table:
+
+```
+deployer@neo-unicorn-production-i-09c912e97202d362e:~$ route
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+default         ip-172-31-0-1.c 0.0.0.0         UG    0      0        0 eth0
+172.17.0.0      *               255.255.0.0     U     0      0        0 docker0
+172.31.0.0      *               255.255.240.0   U     0      0        0 eth0
+```
+
+Dest:
+
+```
+deployer@ha-grpc:~$ traceroute6 172.31.3.181
+traceroute: unknown host 172.31.3.181
+```
+
+```
+deployer@ha-grpc:~$ route
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+default         ip-172-31-0-1.c 0.0.0.0         UG    0      0        0 ens3
+172.31.0.0      *               255.255.240.0   U     0      0        0 ens3
+```
+
+### 0x04 分析
+
+根据您在案例中提供的信息，进一步分析如下： 
+
+您好，能够看到您使用 traceroute6 (IPV6) 后面跟着 IPv4 的地址，能否请您使用 traceroute IP 来进行查询。
+此外能否请您看一下 `/etc/hosts.allow` 和 `/etc/hosts.deny` 中是否对 IP 做出了限制。
+
+### 0x05 信息补充
+
+我想我找到问题了，**应该是 aws 启动的机器 ip 地址是可以重复使用的，但是和 mac addr 的映射关系会发生变化，所以导致路由数据包错误**。
+
+正常机器的 mac addr:
+
+```
+eth0      Link encap:Ethernet  HWaddr 02:40:71:a7:00:72
+          inet addr:172.31.1.153  Bcast:172.31.15.255  Mask:255.255.240.0
+          inet6 addr: fe80::40:71ff:fea7:72/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:9001  Metric:1
+          RX packets:37281448 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:43559135 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:12755185675 (12.7 GB)  TX bytes:11821186849 (11.8 GB)
+```
+
+Dest arp cache:
+
+```
+$ arp -vn
+Address                  HWtype  HWaddress           Flags Mask            Iface
+ip-172-31-1-153.cn-nort  ether   02:40:71:a7:00:72   C                     ens3
+```
+
+不正常机器的 mac addr:
+
+```
+eth0      Link encap:Ethernet  HWaddr 02:2d:05:f2:ca:1c
+          inet addr:172.31.3.181  Bcast:172.31.15.255  Mask:255.255.240.0
+          inet6 addr: fe80::2d:5ff:fef2:ca1c/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:9001  Metric:1
+          RX packets:12492011 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:14361234 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:4513317052 (4.5 GB)  TX bytes:4094005486 (4.0 GB)
+```
+
+Dest arp cache:
+
+```
+$ arp -vn
+Address                  HWtype  HWaddress           Flags Mask            Iface
+ip-172-31-3-181.cn-nort  ether   02:82:2a:d1:b3:16
+```
+
+所以你看正常机器的 arp cache 地址是对的，不正常机器的 arp cache 地址是错误的。
+
+然后我把这个错误的 arp 地址从 Dest instance 删除掉后就正常了：
+
+```
+sudo arp -d 172.31.3.181
+```
+
+```
+deployer@neo-unicorn-production-i-09c912e97202d362e:~$ sudo tcpdump -iany -e -n port 50056
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on any, link-type LINUX_SLL (Linux cooked), capture size 65535 bytes
+23:32:32.560784   P 02:42:ac:11:00:02 ethertype IPv4 (0x0800), length 68: 172.17.0.2.37644 > 172.31.4.7.50056: Flags [.], ack 1, win 229, options [nop,nop,TS val 2895040 ecr 1996079746], length 0
+23:32:32.560784  In 02:42:ac:11:00:02 ethertype IPv4 (0x0800), length 68: 172.17.0.2.37644 > 172.31.4.7.50056: Flags [.], ack 1, win 229, options [nop,nop,TS val 2895040 ecr 1996079746], length 0
+23:32:32.560802 Out 02:2d:05:f2:ca:1c ethertype IPv4 (0x0800), length 68: 172.31.3.181.37644 > 172.31.4.7.50056: Flags [.], ack 1, win 229, options [nop,nop,TS val 2895040 ecr 1996079746], length 0
+23:32:32.560874   P 02:42:ac:11:00:02 ethertype IPv4 (0x0800), length 125: 172.17.0.2.37644 > 172.31.4.7.50056: Flags [P.], seq 1:58, ack 1, win 229, options [nop,nop,TS val 2895040 ecr 1996079746], length 57
+23:32:32.560874  In 02:42:ac:11:00:02 ethertype IPv4 (0x0800), length 125: 172.17.0.2.37644 > 172.31.4.7.50056: Flags [P.], seq 1:58, ack 1, win 229, options [nop,nop,TS val 2895040 ecr 1996079746], length 57
+```
+
+那么新的问题来了，对于 aws 这种通过 ASG 频繁的自动创建大量实例的情况，并且 ip addr 肯定会有重复的情况, aws 是怎么保证路由正常的呢？
+
+通过 ASG 启动机器的时候，广播告诉大家 arp cache 失效，让所有机器都更新 arp cache? 感觉这个也不合理，我们有好多个 vpc ，这个方案不一定会有效。
+
+怎么规避使用 ASG 时因为 arp cache 不正确引起的问题。
+
+### 0x06 分析
+
+我已经和我们网络组的工程师讨论了您的案例，目前 AWS auto-scaling 还没有实现“在启动实例时自动规避之前使用过的 IP 地址”的功能，在 VPC 环境中，不是选用的 auto-scaling 组来分配 IP 地址给新启动的实例，而是 VPC 环境中 AWS 配置的 DHCP 服务器，所以不论是使用 auto-scaling 或者其他部署服务，在启动实例的时候，VPC 内部的 DHCP 服务器都有可能分配之前实例所使用过的 IP 地址，于此不便我们深表歉意。
+
+除了您所提及的删除实例内部 arp 信息，AWS 并没有提供面向客户的相关文档来规避该情况造成的实例连接（建立失败）问题，但是以下选项是目前比较有效的解决办法，请您参考：
+
+- 设置实例内部 ARP caching 的超时时间
+
+您可以登录实例后通过指令缩短 ARP caching 的有效时间，从而使无效的条目在短时间内失效：
+
+```
+$ echo <新的有效时间> > /proc/sys/net/ipv4/route/gc_timeout
+```
+
+在网站 stackoverflow 上面有相关的 ARP 条目超时的介绍，请您参考以下链接: http://stackoverflow.com/questions/15372011/configuring-arp-age-timeout
+
+- 查看 auto-scaling 启动实例时所使用的镜像 (AMI) 以及操作系统版本
+
+以 Ubuntu Linux 为例，Linux 的 3.13 版本内核会缓存无效的 ARP 条目，造成和您所遇到的一样的问题，包括 Ubuntu 14.04 在内很多操作系统会受到影响，但是这个问题在 Linux 的 3.19 版本内核已经修复，您可以在 Ubuntu 14.04 的实例内安装 "LTS Hardware Enablement Stack":
+
+```
+$ sudo apt-get install linux-signed-generic-lts-vivid
+```
+
+您也可以提供您的 auto-scaling 组所使用的镜像以及操作系统版本，我们会在我们的内部测试环境尝试复现您的问题。
+
+- 在您的服务器端，例如实例 172.31.4.7 ，通过以下指令验证是否存在服务器返回无效的 SYN-ACK 数据包：
+
+```
+$ sudo tcpdump -nn -e port XXX
+```
+
+请在服务器端使用以下指令：
+
+```
+# 存在于 ARP 高速缓存中的最少层数，如果少于这个数，垃圾收集器将不会运行，缺省值是 128
+$ sudo sysctl -w net.ipv4.neigh.default.gc_thresh1=0 
+```
+
+为了确保服务器在重启之后能够保留更改后的配置，请您使用以下指令:
+
+```
+echo 'net.ipv4.neigh.default.gc_thresh1 = 0' | sudo tee /etc/sysctl.d/55-arp-gc_thresh1.conf
+```
+
+### 0x07 信息补充
+
+目前看这种通过在每台机器上 gc arp cache 的方式可以暂时规避掉问题，就是比较麻烦。
+
+另外一个问题，我们使用 RDS, ElasticCache 等我们不具有直接访问权限的机器怎么办呢？还是说你们已经进行了相关的配置？
+
+### 0x08 分析
+
+诚如您所言，对于我们可以控制操作的实例，可以通过缩短 ARP 缓存老化时间，来改善在 ARP 缓存默认老化时间内（Amazon Linux 为 60 秒）出现的相同 IP 的实例（例如刚刚终止后又在一分钟内启动，且分配相同 IP 的新实例）与原后端实例（如数据库）在 ARP 缓存没有更新前的连接问题。（原因是后端实例还保存着已经终止的实例的 MAC 地址与 IP 的对应关系）
+
+在来信中您也提到，对于类似 RDS 、ElasticCache 这样客户无法直接访问操作系统的后端服务，在这个问题上是否有做什么优化或方法来避免此类问题。
+
+对于这个问题。由于涉及到底层网络的实现，请恕我暂时无法即刻回答您，我会将这个问题，发送给后台的工程师进行询问，并根据回复的具体内容为您再次做出解释。由于时间可能相对长一些，给您带来的不便，还请您谅解。
+
+经过对后台系统和查询我们发现，**RDS 等托管实例对于 ARP 请求会在进入实例操作系统前有专门的底层组件进行处理，从而提高其可用性**。如果您在使用 RDS 等托管实例的过程中遇到类似的问题，欢迎您随时联系我们。
 
 
 ## 有些机器访问这台机器的网络有问题
