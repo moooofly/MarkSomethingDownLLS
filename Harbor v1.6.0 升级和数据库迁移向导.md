@@ -1,4 +1,4 @@
-# Harbor v1.6.0 升级和数据库迁移向导
+# Harbor 升级和数据库迁移向导 - master 分支
 
 > ref: https://github.com/goharbor/harbor/blob/c9d51f2a7534a4d63f35e865cc1510dddbd91468/docs/migration_guide.md
 

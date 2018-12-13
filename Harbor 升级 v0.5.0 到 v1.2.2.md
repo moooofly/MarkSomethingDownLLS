@@ -20,29 +20,28 @@
 $ sudo docker-compose down -v
 ```
 
-- 移除 Harbor 使用的 **database** 文件和保存在文件系统上的 **image** 数据（对于默认），相当于彻底重置，对应一次干净的重装：
+- 移除 Harbor 使用的 **database** 文件和保存在文件系统上的 **image** 数据（默认的 image storage driver 为 `filesystem`），相当于彻底重置，对应一次干净的重装：
 
 ```
 $ rm -r /data/database
 $ rm -r /data/registry
 ```
 
-- By default, Harbor stores **images** on your **local filesystem** (`/data/registry`).
-
-- By default, **registry data** (`/data/registry`) is **persisted** in the host's `/data/` directory. This data remains unchanged even when Harbor's containers are removed and/or recreated.
-
-- In addition, Harbor uses `rsyslog` to collect the logs of each container. By default, these log files are stored in the directory `/var/log/harbor/` on the target host for troubleshooting.
-
+- 默认配置下 Harbor 将 **images** 保存在你的 **local filesystem** (`/data/registry`) 中；
+- 默认配置下，**registry data** (`/data/registry`) 被**持久化**存储在宿主机的 `/data/` 目录下；该数据不会发生变化，即使 Harbor 容器被移除或重建；
+- 另外，Harbor 使用 `rsyslog` 来收集每个容器中的日志；默认配置下，这些日志文件被保存在宿主机的 `/var/log/harbor/` 目录下；
 - 在迁移过程中，可以通过 `du -shx /data/database` 确认 mysql 数据库大小；
 
 
 ----------
+
 
 ### 版本变更相关
 
 - There's no change in schema from `0.4.5` to `0.5.0`
 - There is no DB change from `0.5.0` to `1.1.2`.
 - If you want to use `1.2-rc1`, you need to do the migration.
+
 
 ----------
 
@@ -74,7 +73,7 @@ $ cd harbor
 $ docker-compose down
 
 # Back up Harbor's current files so that you can roll back to the current version when it is necessary.
-# 将原始 Harbor 版本的相关内容备份走（注意：不止可执行程序有用，配套的脚本以及 common 目录下的配置都有用）
+# 将原始 Harbor 版本的相关内容备份走（注意：不仅可执行程序有用，配套的脚本以及 common 目录下的配置都有用）
 $ cd ..
 $ mv harbor /my_backup_dir/harbor
 
@@ -82,15 +81,16 @@ $ mv harbor /my_backup_dir/harbor
 # The migration tool is delivered as a docker image, so you should pull the image from docker hub.
 # 获取用于进行数据迁移的工具
 # 根据想要升级的目标版本选择工具的 tag 值，详见：https://hub.docker.com/r/vmware/harbor-db-migrator/tags/
+# FIXME: 这里有个疑问，按照其他文档的说法，似乎 migrator 的 tag 应该选择 0.5 才对
 $ docker pull vmware/harbor-db-migrator:1.2
 
 # Back up database to a directory such as /path/to/backup (You need to create the directory if it does not exist).
 # 备份数据库内容
 # /data/database 为 harbor 的 mysql 容器对应的宿主机目录 - 1
 # /var/lib/mysql 为 mysql 容器内的数据库目录 - 2
-# /path/to/backup 为保存 mysql 数据库备份的宿主机目录 - 4 - 该数据可用于回滚
-# /harbor-migration/backup 为用于创建 mysql 数据库备份的容器内目录 - 3
-# 最终会在 /path/to/backup 目录下生成 registry.sql 文件
+# /path/to/backup 为保存 mysql 用于保存数据库备份的宿主机目录 - 4 - 该数据可用于回滚
+# /harbor-migration/backup 为用于保存 mysql 数据库备份的容器内目录 - 3
+# 该命令最终会在 /path/to/backup 目录下生成 registry.sql 文件
 $ docker run -ti --rm -e DB_USR=root -e DB_PWD=root123 -v /data/database:/var/lib/mysql -v /path/to/backup:/harbor-migration/backup vmware/harbor-db-migrator:1.2 backup
 
 # Upgrade database schema and migrate data
