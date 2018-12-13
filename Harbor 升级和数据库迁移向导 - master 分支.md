@@ -2,7 +2,7 @@
 
 > ref: https://github.com/goharbor/harbor/blob/c9d51f2a7534a4d63f35e865cc1510dddbd91468/docs/migration_guide.md
 
-该文档适用于从 v1.6.0 迁移到更高的版本
+该文档适用于从 v1.6.0 迁移到更高的版本（当前为 v1.7.0-rc2）
 
 > When upgrading your existing Harbor instance to a newer version, you may need to **migrate the data in your database and the settings in `harbor.cfg`**. Since the migration may alter the database schema and the settings of `harbor.cfg`, you should always back up your data before any migration.
 
@@ -51,13 +51,15 @@ cp -r /data/database /my_backup_dir/
 - 进行 Harbor 升级前需要先完成数据库迁移操作；迁移工具通过 docker image 提供，需要从 docker hub 上进行下载；在使用如下命令时，替换 `[tag]` 为指定的 release version（例如 v1.5.0）：
 
 ```
-docker pull goharbor/harbor-migrator:[tag]
+docker pull goharbor/harbor-db-migrator:[tag]
 ```
+
+这里的说明存在问题：首先 v1.5.0 是不存在的，详见 https://hub.docker.com/r/goharbor/harbor-db-migrator/tags/ ；其次，应该是 `goharbor/harbor-db-migrator` 而不是 `goharbor/harbor-migrator` ，上面已调整；
 
 - 升级 `harbor.cfg` 文件；注意：`${harbor_cfg}` 会被覆盖，因此你必须将先备份，之后再拷贝回安装目录；
 
 ```
-docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-migrator:[tag] --cfg up
+docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-db-migrator:[tag] --cfg up
 ```
 
 注意：schema upgrade 和数据库的数据迁移均在 Harbor 启动时由 adminserver 完成，如果迁移发生了失败，请查看 adminserver 的日志进行 debug ；
@@ -70,7 +72,7 @@ docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goh
 >
 > **NOTE**: **Roll back doesn't support upgrade across v1.5.0**, like from v1.2.0 to v1.7.0. This is because Harbor changes DB to PostgreSQL from v1.7.0, the migrator cannot roll back data to MariaDB.
 
-注意：回滚操作不支持跨 v1.5.0 版本的情况（例如从 v1.2.0 到 v1.7.0）；因为 Harbor 从 v1.7.0 开始将数据库变成了 PostgreSQL ；而迁移工具无法将数据重新回滚为 MariaDB ；
+注意：回滚操作不支持跨 v1.5.0 版本的情况（例如从 v1.2.0 到 v1.7.0）；因为 Harbor 从 v1.7.0 开始（实际是从 v1.6.0 开始）将数据库变成了 `PostgreSQL` ；而迁移工具无法将数据重新回滚为 `MariaDB` 格式；
 
 > - 停止并移除当前正在运行的 Harbor 服务
 

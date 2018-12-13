@@ -26,22 +26,33 @@
 - 在任何数据迁移前，你必须备份数据；
 
 
-> NOTE: Upgrade from harbor 1.2 or older to harbor 1.3 must use `vmware/migratorharbor-db-migrator:1.2`. Because DB engine replaced by `MariaDB` in harbor 1.3
+## Upgrading Harbor and migrating data
 
-注意：从 harbor 1.2 或之前的版本升级到 harbor 1.3 必须使用 `vmware/migratorharbor-db-migrator:1.2` ，因为 DB 引擎在 harbor 1.3 中被替换成了 `MariaDB` ；
+- Before upgrading Harbor, perform migration first. The migration tool is delivered as a docker image, so you should pull the image from docker hub. Replace [tag] with the release version of Harbor (e.g. v1.5.0) in the below command:
+
+```
+docker pull vmware/harbor-db-migrator:[tag]
+```
+
+这里的说明存在问题：首先 v1.5.0 是不存在的，详见 https://hub.docker.com/r/vmware/harbor-db-migrator/tags/ ；其次，应该是 `vmware/harbor-db-migrator` 而不是 `vmware/harbor-migrator` ，上面已调整；
+
 
 - **Back up** database/`harbor.cfg` to a directory such as `/path/to/backup`.
 
+> NOTE: Upgrade from harbor 1.2 or older to harbor 1.3 must use `vmware/harbor-db-migrator:1.2`. Because DB engine replaced by `MariaDB` in harbor 1.3
+
+注意：从 harbor 1.2 或之前的版本升级到 harbor 1.3 必须使用 `vmware/harbor-db-migrator:1.2` ，因为 DB 引擎在 harbor 1.3 中被替换成了 `MariaDB` ；
+
 ```
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg -v ${backup_path}:/harbor-migration/backup vmware/harbor-migrator:[tag] backup
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg -v ${backup_path}:/harbor-migration/backup vmware/harbor-db-migrator:[tag] backup
 ```
 
 > NOTE: By default, the migrator handles the backup for DB and CFG. If you want to backup DB or CFG only, refer to the following commands:
 
 ```
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${backup_path}:/harbor-migration/backup vmware/harbor-migrator:[tag] --db backup
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${backup_path}:/harbor-migration/backup vmware/harbor-db-migrator:[tag] --db backup
 
-docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg -v ${backup_path}:/harbor-migration/backup vmware/harbor-migrator:[tag] --cfg backup
+docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg -v ${backup_path}:/harbor-migration/backup vmware/harbor-db-migrator:[tag] --cfg backup
 ```
 
 默认情况下，migrator 会同时备份 DB 和 CFG ；可以通过上述两个命令进行单独备份；
@@ -50,15 +61,15 @@ docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg -v 
 - **Upgrade** database schema, `harbor.cfg` and migrate data.
 
 ```
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-migrator:[tag] up
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-db-migrator:[tag] up
 ```
 
 > NOTE: By default, the migrator handles the upgrade for DB and CFG. If you want to upgrade DB or CFG only, refer to the following commands:
 
 ```
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql vmware/harbor-migrator:[tag] --db up
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql vmware/harbor-db-migrator:[tag] --db up
 
-docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-migrator:[tag] --cfg up
+docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-db-migrator:[tag] --cfg up
 ```
 
 > NOTE: Some errors like
@@ -74,6 +85,8 @@ docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmw
 
 可以忽略的错误信息；
 
+### Roll back from an upgrade
+
 > NOTE: **Rollback from harbor 1.3 to harbor 1.2** should delete `/data/database` directory first, then create new database directory by `docker-compose up -d && docker-compose stop`. And must use `vmware/harbor-db-migrator:1.2` to restore. Because of DB engine change.
 
 从 harbor 1.3 回滚到 harbor 1.2 要求：先删除 `/data/database` 目录，之后通过 `docker-compose up -d && docker-compose stop` 创建新的数据库目录；同时必须使用 `vmware/harbor-db-migrator:1.2` 进行恢复；
@@ -82,7 +95,7 @@ docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmw
 > Use `test` command to test mysql connection:
 
 ```
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-migrator:[tag] test
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg vmware/harbor-db-migrator:[tag] test
 ```
 
 可以使用 `test` 命令测试 mysql 连接；
