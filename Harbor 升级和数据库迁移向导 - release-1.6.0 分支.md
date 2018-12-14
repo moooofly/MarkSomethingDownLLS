@@ -8,7 +8,7 @@
 
 > NOTE:
 > 
-> - Please use `goharbor/harbor-db-migrator:1.6.3` instead if you're performing migration, as the v1.6.3 includes a fix for issue https://github.com/goharbor/harbor/issues/6465.
+> - Please use `goharbor/harbor-migrator:1.6.3` instead if you're performing migration, as the v1.6.3 includes a fix for issue https://github.com/goharbor/harbor/issues/6465.
 > - **From v1.6.0 on, Harbor migrates DB from `MariaDB` to `Postgresql`**, and combines Harbor, Notary and Clair DB into one.
 > - **From v1.5.0 on**, the migration tool add support for the `harbor.cfg` migration, which supports upgrade from v1.2.x, v1.3.x and v1.4.x.
 > - **From v1.2 on**, you need to use the release version as the tag of the migrator image. 'latest' is no longer used for new release.
@@ -17,18 +17,16 @@
 
 注意：
 
-- 数据库迁移工具需要使用 `goharbor/harbor-db-migrator:1.6.3` ；
+- 数据库迁移工具需要使用 [`goharbor/harbor-migrator:1.6.3`](https://hub.docker.com/r/goharbor/harbor-migrator/tags/) ；
 - 从 v1.6.0 开始，Harbor 将自身使用的 DB 从 `MariaDB` 迁移成 `Postgresql` ；
 
 ## Upgrading Harbor and migrating data
 
-> NOTE: **Before harbor 1.5** , image name of the migration tool is `goharbor/harbor-db-migrator:[tag]`
+> NOTE: **[Before harbor 1.5](https://hub.docker.com/r/goharbor/harbor-db-migrator/tags/)** , image name of the migration tool is `goharbor/harbor-db-migrator:[tag]`
 
 ```
-docker pull goharbor/harbor-db-migrator:[tag]
+docker pull goharbor/harbor-migrator:[tag]
 ```
-
-这里存在问题：应该是 `goharbor/harbor-db-migrator` 而不是 `goharbor/harbor-migrator` ，详见 https://hub.docker.com/r/goharbor/harbor-db-migrator/tags/ ；
 
 > NOTE: Upgrade from harbor 1.2 or older to harbor 1.3 must use `goharbor/harbor-db-migrator:1.2`. Because DB engine replaced by MariaDB in harbor 1.3
 
@@ -38,33 +36,33 @@ docker pull goharbor/harbor-db-migrator:[tag]
 
 ```
 # Harbor 的 DB (MariaDB) 和 CFG 迁移
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-db-migrator:[tag] up
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-migrator:[tag] up
 ```
 
 > NOTE: **You must run migration of Notary and Clair's DB before launch Harbor**. If you want to upgrade Notary and Clair DB, refer to the following commands:
 
 ```
 # 迁移 notary-db (postgresql)
-docker run -it --rm -e DB_USR=root -v /data/notary-db/:/var/lib/mysql -v /data/database:/var/lib/postgresql/data goharbor/harbor-db-migrator:${tag} --db up
+docker run -it --rm -e DB_USR=root -v /data/notary-db/:/var/lib/mysql -v /data/database:/var/lib/postgresql/data goharbor/harbor-migrator:${tag} --db up
 
 # 迁移 clair-db (postgresql)
-docker run -it --rm -v /data/clair-db/:/clair-db -v /data/database:/var/lib/postgresql/data goharbor/harbor-db-migrator:${tag} --db up
+docker run -it --rm -v /data/clair-db/:/clair-db -v /data/database:/var/lib/postgresql/data goharbor/harbor-migrator:${tag} --db up
 ```
 
 > NOTE: If you want to upgrade DB or CFG only, refer to the following commands:
 
 ```
 # 迁移 Harbor 的 DB
-docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql goharbor/harbor-db-migrator:[tag] --db up
+docker run -it --rm -e DB_USR=root -e DB_PWD={db_pwd} -v ${harbor_db_path}:/var/lib/mysql goharbor/harbor-migrator:[tag] --db up
 
 # 迁移 notary 的 DB
-docker run -it --rm -e DB_USR=root -v /data/notary-db/:/var/lib/mysql -v /data/database:/var/lib/postgresql/data goharbor/harbor-db-migrator:${tag} --db up
+docker run -it --rm -e DB_USR=root -v /data/notary-db/:/var/lib/mysql -v /data/database:/var/lib/postgresql/data goharbor/harbor-migrator:${tag} --db up
 
 # 迁移 clair 的 DB
-docker run -it --rm -v /data/clair-db/:/clair-db -v /data/database:/var/lib/postgresql/data goharbor/harbor-db-migrator:${tag} --db up
+docker run -it --rm -v /data/clair-db/:/clair-db -v /data/database:/var/lib/postgresql/data goharbor/harbor-migrator:${tag} --db up
 
 # 迁移 Harbor 的 CFG
-docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-db-migrator:[tag] --cfg up
+docker run -it --rm -v ${harbor_cfg}:/harbor-migration/harbor-cfg/harbor.cfg goharbor/harbor-migrator:[tag] --cfg up
 ```
 
 DB 和 CFG 分开迁移的玩法；
