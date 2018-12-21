@@ -67,6 +67,7 @@ Collecting and making Origin AS information available to the community is part o
 - [自治系统 - 维基百科](https://zh.wikipedia.org/wiki/%E8%87%AA%E6%B2%BB%E7%B3%BB%E7%BB%9F)
 - [Exploring Autonomous System Numbers - The Internet Protocol Journal - Volume 9, Number 1 - Cisco](http://www.cisco.com/c/en/us/about/press/internet-protocol-journal/back-issues/table-contents-12/autonomous-system-numbers.html)
 - [Request Resources](https://www.arin.net/resources/request/asn.html)
+- 从 ip 地址反查 AS 信息的工具：https://tools.ipip.net/as.php
 
 Resources
 

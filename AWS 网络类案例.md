@@ -16,6 +16,8 @@
 
 ## 网络访问不通
 
+> https://console.amazonaws.cn/support/home?region=cn-north-1#/case/?displayId=1066505164&language=zh
+
 ### 0x01 提供的信息
 
 我们有一组服务器，都是通过 ASG 启动的，然后出现其中**某台机器访问其他机器出现网络不通**的情况，影响服务使用了。
@@ -255,6 +257,8 @@ echo 'net.ipv4.neigh.default.gc_thresh1 = 0' | sudo tee /etc/sysctl.d/55-arp-gc_
 
 
 ## 有些机器访问这台机器的网络有问题
+
+> https://console.amazonaws.cn/support/home?region=cn-north-1#/case/?displayId=1068325894&language=zh
 
 ### 0x01 提供的信息
 
@@ -773,6 +777,8 @@ internal-a87dff023241411e7b48102ab8baa063-1424689483.cn-north-1.elb.amazonaws.co
 
 ## 中国移动的网络连通性的问题
 
+> https://console.amazonaws.cn/support/home?region=cn-north-1#/case/?displayId=1397764034&language=zh
+
 ### 0x01 提供的信息
 
 腾讯华佗诊断分析系统
@@ -847,6 +853,8 @@ root@harbor-prod:~#
 
 
 ## 想了解AWS的移动线路能力
+
+> https://console.amazonaws.cn/support/home?region=cn-north-1#/case/?displayId=1422157154&language=zh
 
 ### 0x01 提供的信息
 
