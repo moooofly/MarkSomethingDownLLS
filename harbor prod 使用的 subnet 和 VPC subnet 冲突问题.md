@@ -233,6 +233,319 @@ root@harbor-prod:~#
 接下来的问题是：**harbor 是如何选择子网地址的？是否可以通过配置文件进行控制？**
 
 
+## 解决方案
+
+- 第一步，停止当前所有由 docker-compose 管理的容器进程
+
+```
+root@harbor-prod:/opt/apps/harbor# docker-compose down -v
+Stopping nginx              ... done
+Stopping harbor-jobservice  ... done
+Stopping harbor-ui          ... done
+Stopping registry           ... done
+Stopping harbor-db          ... done
+Stopping harbor-adminserver ... done
+Stopping harbor-log         ... done
+Removing nginx              ... done
+Removing harbor-jobservice  ... done
+Removing harbor-ui          ... done
+Removing registry           ... done
+Removing harbor-db          ... done
+Removing harbor-adminserver ... done
+Removing harbor-log         ... done
+Removing network harbor_harbor
+root@harbor-prod:/opt/apps/harbor#
+
+
+# 可以看到由 docker-compose 所创建的 network 均被销毁了
+root@harbor-prod:/opt/apps/harbor# ifconfig
+docker0   Link encap:Ethernet  HWaddr 02:42:d7:2a:00:89
+          inet addr:172.17.0.1  Bcast:0.0.0.0  Mask:255.255.0.0
+          inet6 addr: fe80::42:d7ff:fe2a:89/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:3 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:258 (258.0 B)
+
+ens3      Link encap:Ethernet  HWaddr 02:d7:a0:28:7a:a4
+          inet addr:172.31.2.7  Bcast:172.31.15.255  Mask:255.255.240.0
+          inet6 addr: fe80::d7:a0ff:fe28:7aa4/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:9001  Metric:1
+          RX packets:2816571661 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1965901056 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:1859060950160 (1.8 TB)  TX bytes:1373476494879 (1.3 TB)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:2224923504 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:2224923504 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1
+          RX bytes:753122069031 (753.1 GB)  TX bytes:753122069031 (753.1 GB)
+
+root@harbor-prod:/opt/apps/harbor#
+
+
+# 可以看到相应的 iptables 规则也被删除了
+root@harbor-prod:/opt/apps/harbor# iptables -t nat -S
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-N DOCKER
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
+-A DOCKER -i docker0 -j RETURN
+root@harbor-prod:/opt/apps/harbor#
+```
+
+- 第二步，调整 network 配置
+
+```
+root@harbor-prod:/opt/apps/harbor# vi docker-compose.yml
+...
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+```
+
+重新启动失败，发现 network 的名字不对
+
+```
+root@harbor-prod:/opt/apps/harbor# docker-compose up -d
+ERROR: Service "log" uses an undefined network "harbor"
+root@harbor-prod:/opt/apps/harbor#
+```
+
+再次调整
+
+```
+root@harbor-prod:/opt/apps/harbor# vi docker-compose.yml
+...
+networks:
+  harbor:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+```
+
+- 第三步，重新启动
+
+```
+root@harbor-prod:/opt/apps/harbor# docker-compose up -d
+Creating network "harbor_harbor" with the default driver
+Creating harbor-log ...
+Creating harbor-log ... done
+Creating harbor-db ...
+Creating harbor-adminserver ...
+Creating registry ...
+Creating harbor-db
+Creating registry
+Creating harbor-adminserver ... done
+Creating harbor-ui ...
+Creating harbor-ui ... done
+Creating harbor-jobservice ...
+Creating harbor-db ... done
+Creating nginx ...
+Creating nginx ... done
+root@harbor-prod:/opt/apps/harbor#
+
+
+# 可以看到容器进程都成功启动了
+root@harbor-prod:/opt/apps/harbor# docker ps
+CONTAINER ID        IMAGE                              COMMAND                  CREATED             STATUS              PORTS                                                              NAMES
+1246f770a686        vmware/nginx-photon:1.11.13        "nginx -g 'daemon ..."   25 seconds ago      Up 24 seconds       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp   nginx
+f9abf98c5cc0        vmware/harbor-jobservice:v1.2.2    "/harbor/harbor_jo..."   26 seconds ago      Up 25 seconds                                                                          harbor-jobservice
+26a9a797a346        vmware/harbor-ui:v1.2.2            "/harbor/harbor_ui"      26 seconds ago      Up 25 seconds                                                                          harbor-ui
+06603e5c58a8        vmware/harbor-adminserver:v1.2.2   "/harbor/harbor_ad..."   27 seconds ago      Up 25 seconds                                                                          harbor-adminserver
+58acb13c76f9        vmware/harbor-db:v1.2.2            "docker-entrypoint..."   27 seconds ago      Up 24 seconds       3306/tcp                                                           harbor-db
+97c4521acf90        vmware/registry:2.6.2-photon       "/entrypoint.sh se..."   27 seconds ago      Up 25 seconds       5000/tcp                                                           registry
+7f3a26a3c886        vmware/harbor-log:v1.2.2           "/bin/sh -c 'crond..."   27 seconds ago      Up 26 seconds       127.0.0.1:1514->514/tcp                                            harbor-log
+root@harbor-prod:/opt/apps/harbor#
+
+
+# 可以看到 network 被重新建立
+root@harbor-prod:/opt/apps/harbor# docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+4f3bb0e533de        bridge              bridge              local
+e0f31f5113f8        harbor_harbor       bridge              local
+e4a5fd2f3443        host                host                local
+9d6b5291548d        none                null                local
+root@harbor-prod:/opt/apps/harbor#
+root@harbor-prod:/opt/apps/harbor# docker network inspect harbor_harbor
+[
+    {
+        "Name": "harbor_harbor",
+        "Id": "e0f31f5113f82e48cdf0a0b2b363fc82fabeae3f17e0078800db8c4f86a845f9",
+        "Created": "2018-04-27T10:48:14.261025865Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.28.0.0/16"   # 和之前相比，这里缺少了一个 gateway 设置，不过貌似也没啥问题
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "06603e5c58a8397863244569ee30ae901cd6032a6eff18a8a58ddddd4d43cfcd": {
+                "Name": "harbor-adminserver",
+                "EndpointID": "4941ead677487b24274d91f421e3fa1b189c7da9de082b16b7c93e8901b73976",
+                "MacAddress": "02:42:ac:1c:00:05",
+                "IPv4Address": "172.28.0.5/16",
+                "IPv6Address": ""
+            },
+            "1246f770a6866b37fcfda7abb4986927c7324cfe6b068d08c8734dcaa93129b1": {
+                "Name": "nginx",
+                "EndpointID": "98193c72f99283d8679a665849691ab37e26431651cccd320ddbef4571366e67",
+                "MacAddress": "02:42:ac:1c:00:08",
+                "IPv4Address": "172.28.0.8/16",
+                "IPv6Address": ""
+            },
+            "26a9a797a346e95d7da52ed78dfa3c1415a136fef21080fc84dfd192bdc405ca": {
+                "Name": "harbor-ui",
+                "EndpointID": "5495f01855a78c6c18d0965e10138bfc9461a08fb1b79416f7a9d9ccea3c55da",
+                "MacAddress": "02:42:ac:1c:00:06",
+                "IPv4Address": "172.28.0.6/16",
+                "IPv6Address": ""
+            },
+            "58acb13c76f92e5ca60262c4255ce4516930c1b9f0fbcc588cbfe39d2a0a8f92": {
+                "Name": "harbor-db",
+                "EndpointID": "0af27cb9209ee0b38540b7fc21aa48eaaf9711bd92b793db5ae5ac36e5a56b3d",
+                "MacAddress": "02:42:ac:1c:00:04",
+                "IPv4Address": "172.28.0.4/16",
+                "IPv6Address": ""
+            },
+            "7f3a26a3c886b699089c9c71da3238b3cb5f8a28ba797a1518413db7af2ddd73": {
+                "Name": "harbor-log",
+                "EndpointID": "e17304541235ea3fddfa2f871f3efe0333892f731b7dc2e040e9c9955bcdb2a0",
+                "MacAddress": "02:42:ac:1c:00:02",
+                "IPv4Address": "172.28.0.2/16",
+                "IPv6Address": ""
+            },
+            "97c4521acf90ea2f3f856972de473937238fa39f377fc42071953a4175ceeee1": {
+                "Name": "registry",
+                "EndpointID": "a2cbd21c1b9c99bfd624550bc3c3b08faeb5bbefe1ae756dc95e387fb4887054",
+                "MacAddress": "02:42:ac:1c:00:03",
+                "IPv4Address": "172.28.0.3/16",
+                "IPv6Address": ""
+            },
+            "f9abf98c5cc084e712f2292f9bf73442d4d25493a941f2f4a49e928c6f8b35f0": {
+                "Name": "harbor-jobservice",
+                "EndpointID": "53a92f05f38390d8ad501830b08997596bd5f4730a80d66c8c26f234054389e7",
+                "MacAddress": "02:42:ac:1c:00:07",
+                "IPv4Address": "172.28.0.7/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {}
+    }
+]
+root@harbor-prod:/opt/apps/harbor#
+```
+
+查看网卡信息和 iptables 信息
+
+```
+root@harbor-prod:/opt/apps/harbor# ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP group default qlen 1000
+    link/ether 02:d7:a0:28:7a:a4 brd ff:ff:ff:ff:ff:ff
+    inet 172.31.2.7/20 brd 172.31.15.255 scope global ens3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::d7:a0ff:fe28:7aa4/64 scope link
+       valid_lft forever preferred_lft forever
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
+    link/ether 02:42:d7:2a:00:89 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 scope global docker0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::42:d7ff:fe2a:89/64 scope link
+       valid_lft forever preferred_lft forever
+115: br-e0f31f5113f8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default
+    link/ether 02:42:f2:5c:15:88 brd ff:ff:ff:ff:ff:ff
+    inet 172.28.0.1/16 scope global br-e0f31f5113f8
+       valid_lft forever preferred_lft forever
+    inet6 fe80::42:f2ff:fe5c:1588/64 scope link
+       valid_lft forever preferred_lft forever
+117: vethce5c042@if116: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether fa:bf:58:d2:bd:a9 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet6 fe80::f8bf:58ff:fed2:bda9/64 scope link
+       valid_lft forever preferred_lft forever
+119: veth3c9127a@if118: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether ae:4d:3d:d5:fb:6e brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    inet6 fe80::ac4d:3dff:fed5:fb6e/64 scope link
+       valid_lft forever preferred_lft forever
+121: veth4a00474@if120: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether ae:3f:3d:d7:fd:33 brd ff:ff:ff:ff:ff:ff link-netnsid 5
+    inet6 fe80::ac3f:3dff:fed7:fd33/64 scope link
+       valid_lft forever preferred_lft forever
+123: vethdadea9c@if122: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether 9a:ac:71:22:41:ac brd ff:ff:ff:ff:ff:ff link-netnsid 2
+    inet6 fe80::98ac:71ff:fe22:41ac/64 scope link
+       valid_lft forever preferred_lft forever
+125: veth603b5d1@if124: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether 72:78:36:45:aa:cb brd ff:ff:ff:ff:ff:ff link-netnsid 3
+    inet6 fe80::7078:36ff:fe45:aacb/64 scope link
+       valid_lft forever preferred_lft forever
+127: vethe39eacc@if126: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether 66:8f:04:4a:bd:9a brd ff:ff:ff:ff:ff:ff link-netnsid 4
+    inet6 fe80::648f:4ff:fe4a:bd9a/64 scope link
+       valid_lft forever preferred_lft forever
+129: veth189e29a@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
+    link/ether 3a:e4:64:25:3c:72 brd ff:ff:ff:ff:ff:ff link-netnsid 6
+    inet6 fe80::38e4:64ff:fe25:3c72/64 scope link
+       valid_lft forever preferred_lft forever
+root@harbor-prod:/opt/apps/harbor#
+root@harbor-prod:/opt/apps/harbor#
+root@harbor-prod:/opt/apps/harbor# iptables -t nat -S
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-N DOCKER
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -s 172.28.0.0/16 ! -o br-e0f31f5113f8 -j MASQUERADE
+-A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
+-A POSTROUTING -s 172.28.0.2/32 -d 172.28.0.2/32 -p tcp -m tcp --dport 514 -j MASQUERADE
+-A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 4443 -j MASQUERADE
+-A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 443 -j MASQUERADE
+-A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 80 -j MASQUERADE
+-A DOCKER -i br-e0f31f5113f8 -j RETURN
+-A DOCKER -i docker0 -j RETURN
+-A DOCKER -d 127.0.0.1/32 ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 1514 -j DNAT --to-destination 172.28.0.2:514
+-A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 4443 -j DNAT --to-destination 172.28.0.8:4443
+-A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 443 -j DNAT --to-destination 172.28.0.8:443
+-A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 80 -j DNAT --to-destination 172.28.0.8:80
+root@harbor-prod:/opt/apps/harbor#
+root@harbor-prod:/opt/apps/harbor#
+```
+
+
 ## 相关 issues
 
 ### [Default Bridge network overlaps with internal subnet #2634](https://github.com/vmware/harbor/issues/2634)
@@ -570,7 +883,7 @@ $ docker network disconnect my-net my-nginx
 
 > If you do not specify a network using the `--network` flag, and you do specify a network driver, your container is connected to the `default` bridge network by `default`. Containers connected to the `default` bridge network can communicate, but only by IP address, unless they are linked using the legacy `--link` flag.
 
-#####Configure the default bridge network
+##### Configure the default bridge network
 
 > To configure the `default` bridge network, you specify options in `daemon.json`. Here is an example `daemon.json` with several options specified. Only specify the settings you need to customize.
 
@@ -587,319 +900,3 @@ $ docker network disconnect my-net my-nginx
 ```
 
 > Restart Docker for the changes to take effect.
-
-
-----------
-
-
-## 解决方案
-
-- 第一步，停止当前所有由 docker-compose 管理的容器进程
-
-```
-root@harbor-prod:/opt/apps/harbor# docker-compose down -v
-Stopping nginx              ... done
-Stopping harbor-jobservice  ... done
-Stopping harbor-ui          ... done
-Stopping registry           ... done
-Stopping harbor-db          ... done
-Stopping harbor-adminserver ... done
-Stopping harbor-log         ... done
-Removing nginx              ... done
-Removing harbor-jobservice  ... done
-Removing harbor-ui          ... done
-Removing registry           ... done
-Removing harbor-db          ... done
-Removing harbor-adminserver ... done
-Removing harbor-log         ... done
-Removing network harbor_harbor
-root@harbor-prod:/opt/apps/harbor#
-
-
-# 可以看到由 docker-compose 所创建的 network 均被销毁了
-root@harbor-prod:/opt/apps/harbor# ifconfig
-docker0   Link encap:Ethernet  HWaddr 02:42:d7:2a:00:89
-          inet addr:172.17.0.1  Bcast:0.0.0.0  Mask:255.255.0.0
-          inet6 addr: fe80::42:d7ff:fe2a:89/64 Scope:Link
-          UP BROADCAST MULTICAST  MTU:1500  Metric:1
-          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:3 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:0
-          RX bytes:0 (0.0 B)  TX bytes:258 (258.0 B)
-
-ens3      Link encap:Ethernet  HWaddr 02:d7:a0:28:7a:a4
-          inet addr:172.31.2.7  Bcast:172.31.15.255  Mask:255.255.240.0
-          inet6 addr: fe80::d7:a0ff:fe28:7aa4/64 Scope:Link
-          UP BROADCAST RUNNING MULTICAST  MTU:9001  Metric:1
-          RX packets:2816571661 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:1965901056 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:1000
-          RX bytes:1859060950160 (1.8 TB)  TX bytes:1373476494879 (1.3 TB)
-
-lo        Link encap:Local Loopback
-          inet addr:127.0.0.1  Mask:255.0.0.0
-          inet6 addr: ::1/128 Scope:Host
-          UP LOOPBACK RUNNING  MTU:65536  Metric:1
-          RX packets:2224923504 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:2224923504 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:1
-          RX bytes:753122069031 (753.1 GB)  TX bytes:753122069031 (753.1 GB)
-
-root@harbor-prod:/opt/apps/harbor#
-
-
-# 可以看到相应的 iptables 规则也被删除了
-root@harbor-prod:/opt/apps/harbor# iptables -t nat -S
--P PREROUTING ACCEPT
--P INPUT ACCEPT
--P OUTPUT ACCEPT
--P POSTROUTING ACCEPT
--N DOCKER
--A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
--A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
--A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
--A DOCKER -i docker0 -j RETURN
-root@harbor-prod:/opt/apps/harbor#
-```
-
-- 第二步，调整 network 配置
-
-```
-root@harbor-prod:/opt/apps/harbor# vi docker-compose.yml
-...
-networks:
-  default:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
-```
-
-重新启动失败，发现 network 的名字不对
-
-```
-root@harbor-prod:/opt/apps/harbor# docker-compose up -d
-ERROR: Service "log" uses an undefined network "harbor"
-root@harbor-prod:/opt/apps/harbor#
-```
-
-再次调整
-
-```
-root@harbor-prod:/opt/apps/harbor# vi docker-compose.yml
-...
-networks:
-  harbor:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
-```
-
-- 第三步，重新启动
-
-```
-root@harbor-prod:/opt/apps/harbor# docker-compose up -d
-Creating network "harbor_harbor" with the default driver
-Creating harbor-log ...
-Creating harbor-log ... done
-Creating harbor-db ...
-Creating harbor-adminserver ...
-Creating registry ...
-Creating harbor-db
-Creating registry
-Creating harbor-adminserver ... done
-Creating harbor-ui ...
-Creating harbor-ui ... done
-Creating harbor-jobservice ...
-Creating harbor-db ... done
-Creating nginx ...
-Creating nginx ... done
-root@harbor-prod:/opt/apps/harbor#
-
-
-# 可以看到容器进程都成功启动了
-root@harbor-prod:/opt/apps/harbor# docker ps
-CONTAINER ID        IMAGE                              COMMAND                  CREATED             STATUS              PORTS                                                              NAMES
-1246f770a686        vmware/nginx-photon:1.11.13        "nginx -g 'daemon ..."   25 seconds ago      Up 24 seconds       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:4443->4443/tcp   nginx
-f9abf98c5cc0        vmware/harbor-jobservice:v1.2.2    "/harbor/harbor_jo..."   26 seconds ago      Up 25 seconds                                                                          harbor-jobservice
-26a9a797a346        vmware/harbor-ui:v1.2.2            "/harbor/harbor_ui"      26 seconds ago      Up 25 seconds                                                                          harbor-ui
-06603e5c58a8        vmware/harbor-adminserver:v1.2.2   "/harbor/harbor_ad..."   27 seconds ago      Up 25 seconds                                                                          harbor-adminserver
-58acb13c76f9        vmware/harbor-db:v1.2.2            "docker-entrypoint..."   27 seconds ago      Up 24 seconds       3306/tcp                                                           harbor-db
-97c4521acf90        vmware/registry:2.6.2-photon       "/entrypoint.sh se..."   27 seconds ago      Up 25 seconds       5000/tcp                                                           registry
-7f3a26a3c886        vmware/harbor-log:v1.2.2           "/bin/sh -c 'crond..."   27 seconds ago      Up 26 seconds       127.0.0.1:1514->514/tcp                                            harbor-log
-root@harbor-prod:/opt/apps/harbor#
-
-
-# 可以看到 network 被重新建立
-root@harbor-prod:/opt/apps/harbor# docker network ls
-NETWORK ID          NAME                DRIVER              SCOPE
-4f3bb0e533de        bridge              bridge              local
-e0f31f5113f8        harbor_harbor       bridge              local
-e4a5fd2f3443        host                host                local
-9d6b5291548d        none                null                local
-root@harbor-prod:/opt/apps/harbor#
-root@harbor-prod:/opt/apps/harbor# docker network inspect harbor_harbor
-[
-    {
-        "Name": "harbor_harbor",
-        "Id": "e0f31f5113f82e48cdf0a0b2b363fc82fabeae3f17e0078800db8c4f86a845f9",
-        "Created": "2018-04-27T10:48:14.261025865Z",
-        "Scope": "local",
-        "Driver": "bridge",
-        "EnableIPv6": false,
-        "IPAM": {
-            "Driver": "default",
-            "Options": null,
-            "Config": [
-                {
-                    "Subnet": "172.28.0.0/16"   # 和之前相比，这里缺少了一个 gateway 设置，不过貌似也没啥问题
-                }
-            ]
-        },
-        "Internal": false,
-        "Attachable": false,
-        "Ingress": false,
-        "ConfigFrom": {
-            "Network": ""
-        },
-        "ConfigOnly": false,
-        "Containers": {
-            "06603e5c58a8397863244569ee30ae901cd6032a6eff18a8a58ddddd4d43cfcd": {
-                "Name": "harbor-adminserver",
-                "EndpointID": "4941ead677487b24274d91f421e3fa1b189c7da9de082b16b7c93e8901b73976",
-                "MacAddress": "02:42:ac:1c:00:05",
-                "IPv4Address": "172.28.0.5/16",
-                "IPv6Address": ""
-            },
-            "1246f770a6866b37fcfda7abb4986927c7324cfe6b068d08c8734dcaa93129b1": {
-                "Name": "nginx",
-                "EndpointID": "98193c72f99283d8679a665849691ab37e26431651cccd320ddbef4571366e67",
-                "MacAddress": "02:42:ac:1c:00:08",
-                "IPv4Address": "172.28.0.8/16",
-                "IPv6Address": ""
-            },
-            "26a9a797a346e95d7da52ed78dfa3c1415a136fef21080fc84dfd192bdc405ca": {
-                "Name": "harbor-ui",
-                "EndpointID": "5495f01855a78c6c18d0965e10138bfc9461a08fb1b79416f7a9d9ccea3c55da",
-                "MacAddress": "02:42:ac:1c:00:06",
-                "IPv4Address": "172.28.0.6/16",
-                "IPv6Address": ""
-            },
-            "58acb13c76f92e5ca60262c4255ce4516930c1b9f0fbcc588cbfe39d2a0a8f92": {
-                "Name": "harbor-db",
-                "EndpointID": "0af27cb9209ee0b38540b7fc21aa48eaaf9711bd92b793db5ae5ac36e5a56b3d",
-                "MacAddress": "02:42:ac:1c:00:04",
-                "IPv4Address": "172.28.0.4/16",
-                "IPv6Address": ""
-            },
-            "7f3a26a3c886b699089c9c71da3238b3cb5f8a28ba797a1518413db7af2ddd73": {
-                "Name": "harbor-log",
-                "EndpointID": "e17304541235ea3fddfa2f871f3efe0333892f731b7dc2e040e9c9955bcdb2a0",
-                "MacAddress": "02:42:ac:1c:00:02",
-                "IPv4Address": "172.28.0.2/16",
-                "IPv6Address": ""
-            },
-            "97c4521acf90ea2f3f856972de473937238fa39f377fc42071953a4175ceeee1": {
-                "Name": "registry",
-                "EndpointID": "a2cbd21c1b9c99bfd624550bc3c3b08faeb5bbefe1ae756dc95e387fb4887054",
-                "MacAddress": "02:42:ac:1c:00:03",
-                "IPv4Address": "172.28.0.3/16",
-                "IPv6Address": ""
-            },
-            "f9abf98c5cc084e712f2292f9bf73442d4d25493a941f2f4a49e928c6f8b35f0": {
-                "Name": "harbor-jobservice",
-                "EndpointID": "53a92f05f38390d8ad501830b08997596bd5f4730a80d66c8c26f234054389e7",
-                "MacAddress": "02:42:ac:1c:00:07",
-                "IPv4Address": "172.28.0.7/16",
-                "IPv6Address": ""
-            }
-        },
-        "Options": {},
-        "Labels": {}
-    }
-]
-root@harbor-prod:/opt/apps/harbor#
-```
-
-查看网卡信息和 iptables 信息
-
-```
-root@harbor-prod:/opt/apps/harbor# ip addr
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
-       valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host
-       valid_lft forever preferred_lft forever
-2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP group default qlen 1000
-    link/ether 02:d7:a0:28:7a:a4 brd ff:ff:ff:ff:ff:ff
-    inet 172.31.2.7/20 brd 172.31.15.255 scope global ens3
-       valid_lft forever preferred_lft forever
-    inet6 fe80::d7:a0ff:fe28:7aa4/64 scope link
-       valid_lft forever preferred_lft forever
-3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default
-    link/ether 02:42:d7:2a:00:89 brd ff:ff:ff:ff:ff:ff
-    inet 172.17.0.1/16 scope global docker0
-       valid_lft forever preferred_lft forever
-    inet6 fe80::42:d7ff:fe2a:89/64 scope link
-       valid_lft forever preferred_lft forever
-115: br-e0f31f5113f8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default
-    link/ether 02:42:f2:5c:15:88 brd ff:ff:ff:ff:ff:ff
-    inet 172.28.0.1/16 scope global br-e0f31f5113f8
-       valid_lft forever preferred_lft forever
-    inet6 fe80::42:f2ff:fe5c:1588/64 scope link
-       valid_lft forever preferred_lft forever
-117: vethce5c042@if116: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether fa:bf:58:d2:bd:a9 brd ff:ff:ff:ff:ff:ff link-netnsid 0
-    inet6 fe80::f8bf:58ff:fed2:bda9/64 scope link
-       valid_lft forever preferred_lft forever
-119: veth3c9127a@if118: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether ae:4d:3d:d5:fb:6e brd ff:ff:ff:ff:ff:ff link-netnsid 1
-    inet6 fe80::ac4d:3dff:fed5:fb6e/64 scope link
-       valid_lft forever preferred_lft forever
-121: veth4a00474@if120: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether ae:3f:3d:d7:fd:33 brd ff:ff:ff:ff:ff:ff link-netnsid 5
-    inet6 fe80::ac3f:3dff:fed7:fd33/64 scope link
-       valid_lft forever preferred_lft forever
-123: vethdadea9c@if122: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether 9a:ac:71:22:41:ac brd ff:ff:ff:ff:ff:ff link-netnsid 2
-    inet6 fe80::98ac:71ff:fe22:41ac/64 scope link
-       valid_lft forever preferred_lft forever
-125: veth603b5d1@if124: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether 72:78:36:45:aa:cb brd ff:ff:ff:ff:ff:ff link-netnsid 3
-    inet6 fe80::7078:36ff:fe45:aacb/64 scope link
-       valid_lft forever preferred_lft forever
-127: vethe39eacc@if126: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether 66:8f:04:4a:bd:9a brd ff:ff:ff:ff:ff:ff link-netnsid 4
-    inet6 fe80::648f:4ff:fe4a:bd9a/64 scope link
-       valid_lft forever preferred_lft forever
-129: veth189e29a@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-e0f31f5113f8 state UP group default
-    link/ether 3a:e4:64:25:3c:72 brd ff:ff:ff:ff:ff:ff link-netnsid 6
-    inet6 fe80::38e4:64ff:fe25:3c72/64 scope link
-       valid_lft forever preferred_lft forever
-root@harbor-prod:/opt/apps/harbor#
-root@harbor-prod:/opt/apps/harbor#
-root@harbor-prod:/opt/apps/harbor# iptables -t nat -S
--P PREROUTING ACCEPT
--P INPUT ACCEPT
--P OUTPUT ACCEPT
--P POSTROUTING ACCEPT
--N DOCKER
--A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
--A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
--A POSTROUTING -s 172.28.0.0/16 ! -o br-e0f31f5113f8 -j MASQUERADE
--A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
--A POSTROUTING -s 172.28.0.2/32 -d 172.28.0.2/32 -p tcp -m tcp --dport 514 -j MASQUERADE
--A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 4443 -j MASQUERADE
--A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 443 -j MASQUERADE
--A POSTROUTING -s 172.28.0.8/32 -d 172.28.0.8/32 -p tcp -m tcp --dport 80 -j MASQUERADE
--A DOCKER -i br-e0f31f5113f8 -j RETURN
--A DOCKER -i docker0 -j RETURN
--A DOCKER -d 127.0.0.1/32 ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 1514 -j DNAT --to-destination 172.28.0.2:514
--A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 4443 -j DNAT --to-destination 172.28.0.8:4443
--A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 443 -j DNAT --to-destination 172.28.0.8:443
--A DOCKER ! -i br-e0f31f5113f8 -p tcp -m tcp --dport 80 -j DNAT --to-destination 172.28.0.8:80
-root@harbor-prod:/opt/apps/harbor#
-root@harbor-prod:/opt/apps/harbor#
-```
