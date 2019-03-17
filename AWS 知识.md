@@ -76,7 +76,7 @@
 - **ARN**：Amazon Resource Names，资源标识符，以 'arn:' 开头，在很多服务中使用，特别是 IAM policy 。比如 "arn:aws-cn:s3:::warehouse-tmp" ；
 - **本地盘**/**Instance Store**（创建 instance 时会看到）/**Ephemeral instance**: are physically attached to the host computer. The data on an instance store persists only during the lifetime of the instance.（C4 没有本地盘）
 - **EBS**：非本地盘，可以随意挂载在 ec2 实例上，并可以脱离 ec2 而存在。创建时的 Root 自动为 EBS ；
-- **EIP**：可以跟 instance 绑定，来获得一个固定 IP 。instance stop 再 start 后，public IP 会变化。
+- **EIP**：即 elastic public IP，可以跟 instance 绑定，来获得一个固定 IP 。instance stop 再 start 后，public IP 会变化，而 EIP 不会变化。
 - **AZ**：Availability Zone ，同一 region（地区）的不同物理机房（目前 beijing 有 `cn-north-1a`/`cn-north-1b` 两个 AZ）
 - **RI**：Reserved instance ，预付一年买的instance，会自动和相同 region，instance type 和 platform 的 instance 绑定，有折扣。如果使用大于三个月，则建议购买，省钱。
 - **Security group**：安全组，限定了属于这个安全组的机器有哪些协议和接口可以让什么 source 访问（一般是 ip、instance、或安全组；选安全组时，对该安全组下的所有机器都适用），有 inbound、outbound，一般设置 inbound 。 为了安全性，端口尽量只对内开放
@@ -161,7 +161,7 @@
 
 #### EIP
 
-- Elastic IP (EIP) Addresses are static IP addresses designed for dynamic cloud computing. 
+- Elastic IP (EIP) Addresses are **static** IP addresses designed for dynamic cloud computing. 
 
 #### VPC
 
