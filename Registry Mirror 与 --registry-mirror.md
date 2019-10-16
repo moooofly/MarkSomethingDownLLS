@@ -16,13 +16,13 @@
 
 ## DaoCloud 提供的 Registry Mirror 服务
 
-下面的例子，使用的是由 DaoCloud 提供的 Registry Mirror 服务，在申请开通 Mirror 服务后你会得到一个 Mirror 地址（我的地址：http://99a63370.m.daocloud.io），然后我们要做的就是把这个地址配置在 Docker Server 启动脚本中，重启 Docker 服务后 Mirror 配置就生效了；
+下面的例子，使用的是由 DaoCloud 提供的 Registry Mirror 服务，在申请开通 Mirror 服务后你会得到一个 Mirror 地址（我的地址：http://99a63370.m.daocloud.io ），然后我们要做的就是把这个地址配置在 Docker Server 启动脚本中，重启 Docker 服务后 Mirror 配置就生效了；
 
 
 简单介绍下**如何在 DaoCloud 申请一个 Mirror 服务**：
 
 - 账号注册：http://www.daocloud.io/
-- 加速器：https://www.daocloud.io/mirror#accelerator-doc ，启动成功后，你就拥有了一个你专用的 Registry Mirror 地址了，加速器链接就是你要设置 "`--registry-mirror`" 的地址。目前每个用户有 10G 的加速流量（Tips：如果流量不够用可以邀请好友获得奖励流量）
+- 加速器：https://www.daocloud.io/mirror#accelerator-doc ，启动成功后，你就拥有了一个你**专用的 Registry Mirror 地址**了，加速器链接就是你要设置 "`--registry-mirror`" 的地址。目前每个用户有 10G 的加速流量（Tips：如果流量不够用可以邀请好友获得奖励流量）
 
 **加速器说明**：
 
@@ -33,7 +33,7 @@
     - **MacOS**：**Docker For Mac** 右键点击桌面顶栏的 docker 图标，选择 Preferences ，在 Daemon 标签（Docker 17.03 之前版本为 Advanced 标签）下的 Registry mirrors 列表中加入下面的镜像地址: `http://99a63370.m.daocloud.io` ，点击 Apply & Restart 按钮使设置生效。
 
 > 针对 set_mirror.sh 脚本内容的详细说明，见《[Docker 加速器配置脚本说明](https://gitee.com/moooofly/SecretGarden/blob/master/Docker%20%E5%8A%A0%E9%80%9F%E5%99%A8%E9%85%8D%E7%BD%AE%E8%84%9A%E6%9C%AC%E8%AF%B4%E6%98%8E.md)》；
-    
+
 - **Docker 加速器是什么，我需要使用吗**？使用 Docker 的时候，需要经常从官方获取镜像，但是由于显而易见的网络原因，拉取镜像的过程非常耗时，严重影响使用 Docker 的体验。因此 DaoCloud 推出了加速器工具解决这个难题，通过智能路由和缓存机制，极大提升了国内网络访问 Docker Hub 的速度，目前已经拥有了广泛的用户群体，并得到了 Docker 官方的大力推荐。如果您是在国内的网络环境使用 Docker，那么 Docker 加速器一定能帮助到您。
 - **Docker 加速器对 Docker 的版本有要求吗**？需要 Docker 1.8 或更高版本才能使用，如果您没有安装 Docker 或者版本较旧，请安装或升级。
 - **Docker 加速器支持什么系统**？Linux, MacOS 以及 Windows 平台。
@@ -70,7 +70,7 @@ docker --registry-mirror=https://<my-docker-mirror-host> daemon
 ```
 
 > 说明：
-> 
+>
 > - 上面提及的 "Docker daemon" 是指 docker client 侧使用（依赖）的那个；
 > - 上面的 startup 命令一般会配置在不同 linux 发行版中用于进行服务管理的服务中（如 systemd）
 
@@ -123,5 +123,5 @@ Refer to the [Registry as a pull through cache](https://docs.docker.com/registry
 
 - [玩转Docker镜像](http://blog.daocloud.io/how-to-master-docker-image/)
 - [daocloud mirror accelerator](https://www.daocloud.io/mirror#accelerator-doc) - 给出基于自身用户的 mirror 地址
-- [Docker 加速器](http://guide.daocloud.io/dcs/daocloud-9153151.html) 
+- [Docker 加速器](http://guide.daocloud.io/dcs/daocloud-9153151.html)
 - [Registry as a pull through cache](https://docs.docker.com/registry/recipes/mirror/)
