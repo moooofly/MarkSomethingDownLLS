@@ -2,6 +2,8 @@
 
 ## 内容目录
 
+- [什么安装了 docker 后却没有 docker-runc 命令](#什么安装了-docker-后却没有-docker-runc-命令)
+- [推荐的 docker 安装方法](#推荐的-docker-安装方法)
 - [/usr/bin/ 下各种 docker 命令之间的关系](#usrbin-下各种-docker-命令之间的关系)
 - [docker-container-shim](#docker-container-shim)
 - [docker-containerd-ctr](#docker-containerd-ctr)
@@ -38,6 +40,80 @@
 - [镜像源变更](#镜像源变更)
 - [DNS 变更](#dns-变更)
 - [时区变更](#时区变更)
+
+
+## 为什么安装了 docker 后却没有 docker-runc 命令
+
+> ref: https://github.com/moby/moby/issues/31437#issuecomment-287476767
+
+Hmm, doesn't look like I have docker-runc installed. I get this message when I try to run it:
+
+```
+The program 'docker-runc' is currently not installed. You can install it by typing:
+sudo apt install docker.io
+```
+
+But docker.io is already installed on my system... odd.
+
+原因：
+
+the `docker.io` package is a package that's built by Ubuntu, not the official packages built here;
+can you try if installing the official packages works? https://docs.docker.com/engine/installation/linux/ubuntu/
+
+
+例子
+
+```
+[#97#root@ubuntu-dev ~]$docker version
+Client:
+ Version:           18.09.7
+ API version:       1.39
+ Go version:        go1.10.1
+ Git commit:        2d0083d
+ Built:             Fri Aug 16 14:20:06 2019
+ OS/Arch:           linux/amd64
+ Experimental:      false
+
+Server:
+ Engine:
+  Version:          18.09.7
+  API version:      1.39 (minimum version 1.12)
+  Go version:       go1.10.1
+  Git commit:       2d0083d
+  Built:            Wed Aug 14 19:41:23 2019
+  OS/Arch:          linux/amd64
+  Experimental:     false
+[#98#root@ubuntu-dev ~]$
+
+
+[#98#root@ubuntu-dev ~]$ls /usr/bin |grep docker
+docker
+docker-compose
+docker-credential-secretservice
+dockerd
+docker-init
+docker-proxy
+wmdocker
+[#99#root@ubuntu-dev ~]$
+
+
+[#103#root@ubuntu-dev ~]$apt list docker* -a | grep "installed"
+
+WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+
+docker/bionic,now 1.5-1build1 amd64 [installed]
+docker-compose/bionic,now 1.17.1-2 all [installed]
+docker.io/bionic-updates,bionic-security,now 18.09.7-0ubuntu1~18.04.4 amd64 [installed,automatic]
+[#104#root@ubuntu-dev ~]$
+```
+
+## 推荐的 docker 安装方法
+
+ref:
+
+- https://docs.docker.com/install/linux/docker-ce/ubuntu/
+- https://github.com/moooofly/MarkSomethingDownLLS/blob/master/Docker%20%E5%AE%89%E8%A3%85.md
+
 
 ## /usr/bin/ 下各种 docker 命令之间的关系
 
@@ -99,6 +175,72 @@ docker-containerd-ctr --address unix:///var/run/docker/libcontainerd/docker-cont
 ```
 
 ## 不同 Docker 版本生成的容器进程树对比
+
+### 18.09.7
+
+```
+[#108#root@ubuntu-dev ~]$ls /usr/bin |grep docker
+docker
+docker-compose
+docker-credential-secretservice
+dockerd
+docker-init
+docker-proxy
+wmdocker
+[#109#root@ubuntu-dev ~]$
+```
+
+```
+[#109#root@ubuntu-dev ~]$docker version
+Client:
+ Version:           18.09.7
+ API version:       1.39
+ Go version:        go1.10.1
+ Git commit:        2d0083d
+ Built:             Fri Aug 16 14:20:06 2019
+ OS/Arch:           linux/amd64
+ Experimental:      false
+
+Server:
+ Engine:
+  Version:          18.09.7
+  API version:      1.39 (minimum version 1.12)
+  Go version:       go1.10.1
+  Git commit:       2d0083d
+  Built:            Wed Aug 14 19:41:23 2019
+  OS/Arch:          linux/amd64
+  Experimental:     false
+[#110#root@ubuntu-dev ~]$
+```
+
+完整进程树信息
+
+
+```
+    1 22775 22775 22775 ?           -1 Ssl      0   0:23 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+22775 29309 22775 22775 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 2171 -container-ip 172.17.0.2 -container-port 2181
+    1  1298  1298  1298 ?           -1 Ssl      0   1:02 /usr/bin/containerd
+ 1298 29317 29317  1298 ?           -1 Sl       0   0:00  \_ containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/5b9d5c50df37f3189bdab4513c354697cd717f1eb32d675ae7cb09276b491bfe -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc
+29317 29335 29335 29335 ?           -1 Ss       0   0:00      \_ /bin/sh -c /usr/sbin/sshd && bash /usr/bin/start-zk.sh
+29335 29397 29397 29397 ?           -1 Ss       0   0:00          \_ /usr/sbin/sshd
+29335 29398 29335 29335 ?           -1 S        0   0:00          \_ bash /usr/bin/start-zk.sh
+29398 29403 29335 29335 ?           -1 Sl       0   0:16              \_ /usr/lib/jvm/java-7-openjdk-amd64/bin/java -Dzookeeper.log.dir=. -Dzookeeper.root.logger=INFO,CONSOLE -cp /opt/zookeeper-3.4.13/bin/../build/classes:/opt/zookeeper-3.4.13/bin/../build/lib/*.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-log4j12-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-api-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/netty-3.10.6.Final.jar:/opt/zookeeper-3.4.13/bin/../lib/log4j-1.2.17.jar:/opt/zookeeper-3.4.13/bin/../lib/jline-0.9.94.jar:/opt/zookeeper-3.4.13/bin/../lib/audience-annotations-0.5.0.jar:/opt/zookeeper-3.4.13/bin/../zookeeper-3.4.13.jar:/opt/zookeeper-3.4.13/bin/../src/java/lib/*.jar:/opt/zookeeper-3.4.13/bin/../conf: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.local.only=false org.apache.zookeeper.server.quorum.QuorumPeerMain /opt/zookeeper-3.4.13/bin/../conf/zoo.cfg
+```
+
+简化后的结构
+
+```
+/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+ \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 2171 -container-ip 172.17.0.2 -container-port 2181
+/usr/bin/containerd
+ \_ containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/5b9d5c50df37f3189bdab4513c354697cd717f1eb32d675ae7cb09276b491bfe -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc
+     \_ /bin/sh -c /usr/sbin/sshd && bash /usr/bin/start-zk.sh
+         \_ /usr/sbin/sshd
+         \_ bash /usr/bin/start-zk.sh
+             \_ /usr/lib/jvm/java-7-openjdk-amd64/bin/java -Dzookeeper.log.dir=. -Dzookeeper.root.logger=INFO,CONSOLE -cp /opt/zookeeper-3.4.13/bin/../build/classes:/opt/zookeeper-3.4.13/bin/../build/lib/*.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-log4j12-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-api-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/netty-3.10.6.Final.jar:/opt/zookeeper-3.4.13/bin/../lib/log4j-1.2.17.jar:/opt/zookeeper-3.4.13/bin/../lib/jline-0.9.94.jar:/opt/zookeeper-3.4.13/bin/../lib/audience-annotations-0.5.0.jar:/opt/zookeeper-3.4.13/bin/../zookeeper-3.4.13.jar:/opt/zookeeper-3.4.13/bin/../src/java/lib/*.jar:/opt/zookeeper-3.4.13/bin/../conf: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.local.only=false org.apache.zookeeper.server.quorum.QuorumPeerMain /opt/zookeeper-3.4.13/bin/../conf/zoo.cfg
+```
+
+
 
 ### 17.09.0-ce
 
@@ -405,28 +547,28 @@ A container runtime is software that **executes containers** and **manages conta
 ### CRI
 
 - CRI is short for **Container Runtime Interface**.
-- [Kubernetes 1.5 introduced an internal plugin API named Container Runtime Interface (CRI)](https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/) to provide easy access to different container runtimes. 
-- CRI enables Kubernetes to use a variety of container runtimes without the need to recompile. 
+- [Kubernetes 1.5 introduced an internal plugin API named Container Runtime Interface (CRI)](https://kubernetes.io/blog/2016/12/container-runtime-interface-cri-in-kubernetes/) to provide easy access to different container runtimes.
+- CRI enables Kubernetes to use a variety of container runtimes without the need to recompile.
 - In theory, Kubernetes could use any container runtime that implements CRI to manage pods, containers and container images.
-- Over the past 6 months, engineers from Google, Docker, IBM, ZTE, and ZJU have worked to implement CRI for containerd. The project is called [cri-containerd](https://github.com/containerd/cri), which had its [feature complete v1.0.0-alpha.0 release](https://github.com/containerd/cri/releases/tag/v1.0.0-alpha.0) on September 25, 2017. 
+- Over the past 6 months, engineers from Google, Docker, IBM, ZTE, and ZJU have worked to implement CRI for containerd. The project is called [cri-containerd](https://github.com/containerd/cri), which had its [feature complete v1.0.0-alpha.0 release](https://github.com/containerd/cri/releases/tag/v1.0.0-alpha.0) on September 25, 2017.
 - With cri-containerd, users can run Kubernetes clusters using containerd as the underlying runtime without Docker installed.
 - Docker CRI implementation - [`dockershim`](https://github.com/kubernetes/kubernetes/tree/v1.10.2/pkg/kubelet/dockershim)
 - The Docker 18.03 CE integration uses the `dockershim`.
 - The containerd 1.1 integration uses the CRI plugin built into containerd.
 - The containerd CRI plugin is an open source [github project](https://github.com/containerd/cri) within containerd.
-- With [containerd/cri](https://github.com/containerd/cri), you could run Kubernetes using containerd as the container runtime. 
-- Containerd is used by Docker, Kubernetes CRI, and a few other projects. 
+- With [containerd/cri](https://github.com/containerd/cri), you could run Kubernetes using containerd as the container runtime.
+- Containerd is used by Docker, Kubernetes CRI, and a few other projects.
 
 ### Container Runtime CLI
 
-- When using Docker as the container runtime for Kubernetes, system administrators sometimes login to the Kubernetes node to run **Docker commands (Docker CLI)** for collecting system and/or application information. 
+- When using Docker as the container runtime for Kubernetes, system administrators sometimes login to the Kubernetes node to run **Docker commands (Docker CLI)** for collecting system and/or application information.
 - For **containerd** and all other CRI-compatible container runtimes, e.g. `dockershim`, we recommend using `crictl` as a replacement CLI over the Docker CLI for troubleshooting pods, containers, and container images on Kubernetes nodes.
 - `crictl` is a tool providing a similar experience to the **Docker CLI** for Kubernetes node troubleshooting and crictl works consistently across all CRI-compatible container runtimes. It is hosted in the [kubernetes-incubator/cri-tools](https://github.com/kubernetes-sigs/cri-tools) repository
-- `crictl` is designed to resemble the **Docker CLI** to offer a better transition experience for users, but it is not exactly the same. 
+- `crictl` is designed to resemble the **Docker CLI** to offer a better transition experience for users, but it is not exactly the same.
     - **Limited Scope - crictl is a Troubleshooting Tool**
         - The scope of `crictl` is limited to troubleshooting, it is not a replacement to `docker` or `kubectl`. Docker’s CLI provides a rich set of commands, making it a very useful development tool. But it is not the best fit for troubleshooting on Kubernetes nodes. Some Docker commands are not useful to Kubernetes, such as `docker network` and `docker build`; and some may even break the system, such as `docker rename`. crictl provides just enough commands for node troubleshooting, which is arguably safer to use on production nodes.
     - **Kubernetes Oriented**
-        - `crictl` offers a more kubernetes-friendly view of containers. Docker CLI lacks core Kubernetes concepts, e.g. pod and namespace, so it can’t provide a clear view of containers and pods. One example is that `docker ps` shows somewhat obscure, long Docker container names, and shows pause containers and application containers together. 
+        - `crictl` offers a more kubernetes-friendly view of containers. Docker CLI lacks core Kubernetes concepts, e.g. pod and namespace, so it can’t provide a clear view of containers and pods. One example is that `docker ps` shows somewhat obscure, long Docker container names, and shows pause containers and application containers together.
         - However, pause containers are a pod implementation detail, where one pause container is used for each pod, and thus should not be shown when listing containers that are members of pods.
         - `crictl`, by contrast, is designed for Kubernetes. It has different sets of commands for pods and containers. For example, `crictl pods` lists pod information, and `crictl ps` only lists application container information. All information is well formatted into table columns.
         - As another example, crictl pods includes a –namespace option for filtering pods by the namespaces specified in Kubernetes.
@@ -473,7 +615,7 @@ containerd 是基于 Docker Engine 的 container runtime 开发起来的；
 
 ![containerd - 1](https://raw.githubusercontent.com/moooofly/ImageCache/master/Pictures/containerd%20-%201.png)
 
-Containerd was initiated by Docker Inc. and donated to CNCF in March of 2017. 
+Containerd was initiated by Docker Inc. and donated to CNCF in March of 2017.
 
 Containerd has a much smaller scope than Docker, provides a golang client API, and is more focused on being embeddable.
 
@@ -483,17 +625,17 @@ containerd is a container daemon. It was originally built as an integration poin
 
 Since there is no such thing as Linux containers in the kernelspace, containers are various kernel features tied together, when you are building a large platform or distributed system **you want an abstraction layer between your management code and the syscalls and duct tape of features to run a container**. That is where containerd lives. It provides a client layer of types that platforms can build on top of without ever having to drop down to the kernel level.  It’s so much nicer towork with Container, Task, and Snapshot types than it is to manage calls to `clone()` or `mount()`.
 
-Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes. 
+Containerd was designed to be used by Docker and Kubernetes as well as any other container platform that wants to abstract away syscalls or OS specific functionality to run containers on linux, windows, solaris, or other OSes.
 
 ### Containerd 提供了什么
 
-So what do you actually get using containerd? 
+So what do you actually get using containerd?
 
 - You get push and pull functionality as well as image management.
 - You get container lifecycle APIs to create, execute, and manage containers and their tasks.
 - An entire API dedicated to snapshot management.
 
-Basically everything that you need to build a container platform without having to deal with the underlying OS details.  
+Basically everything that you need to build a container platform without having to deal with the underlying OS details.
 
 ### Containerd 和 Docker 之间的关系
 
@@ -526,7 +668,7 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 - containerd 集成 OCI/runc 后，成为了一个特性完整、生产级别的 core container runtime ；
 - runc 是 containerd 其中的一个组件，即 containers 的执行器；
 - containerd 的功能不仅仅限于 containers 的执行，还包括：
-    - 下载 container images 
+    - 下载 container images
     - 管理 storage 和 network interfaces
     - 调用 runc 来运行 containers
 - containerd 充分利用了
@@ -551,7 +693,7 @@ containerd 的目标是重构（提取） Docker Engine 代码中的平台通用
 ### The Kubernetes containerd Integration Architecture
 
 - You can now use containerd 1.1 as the container runtime for production Kubernetes clusters!
-- Containerd 1.1 works with Kubernetes 1.10 and above, and supports all Kubernetes features. 
+- Containerd 1.1 works with Kubernetes 1.10 and above, and supports all Kubernetes features.
 
 The Kubernetes containerd integration architecture has evolved twice.
 
@@ -603,9 +745,9 @@ Performance improvement between containerd 1.1 and Docker 18.03 CE was optimized
 
 ### Containerd 和 Docker Engine 和 Kubernetes 的关系
 
-- Docker is by far the most common container runtime used in production Kubernetes environments, but Docker’s smaller offspring, **containerd**, may prove to be a better option. 
-- Docker Engine is built on top of containerd. 
-- The next release of [Docker Community Edition (Docker CE)](https://www.docker.com/products/docker-engine) will use containerd version 1.1. Of course, it will have the CRI plugin built-in and enabled by default. This means users will have the option to continue using Docker Engine for other purposes typical for Docker users, while also being able to configure Kubernetes to use the underlying containerd that came with and is simultaneously being used by Docker Engine on the same node. 
+- Docker is by far the most common container runtime used in production Kubernetes environments, but Docker’s smaller offspring, **containerd**, may prove to be a better option.
+- Docker Engine is built on top of containerd.
+- The next release of [Docker Community Edition (Docker CE)](https://www.docker.com/products/docker-engine) will use containerd version 1.1. Of course, it will have the CRI plugin built-in and enabled by default. This means users will have the option to continue using Docker Engine for other purposes typical for Docker users, while also being able to configure Kubernetes to use the underlying containerd that came with and is simultaneously being used by Docker Engine on the same node.
 - Since containerd is being used by both Kubelet and Docker Engine, this means users who choose the containerd integration will not just get new Kubernetes features, performance, and stability improvements, they will also have the option of keeping Docker Engine around for other use cases.
 - A containerd **namespace mechanism** is employed to guarantee that Kubelet and Docker Engine won’t see or have access to containers and images created by each other. This makes sure they won’t interfere with each other. This also means that:
     - Users won’t see Kubernetes created containers with the `docker ps` command. Please use `crictl ps` instead. And vice versa, users won’t see Docker CLI created containers in Kubernetes or with `crictl ps` command. The `crictl create` and `crictl runp` commands are only for troubleshooting. **Manually starting pod or container with `crictl` on production nodes is not recommended**.
@@ -633,7 +775,7 @@ See the architecture figure below showing the same containerd being used by Dock
 - For a custom installation from release tarball, see [here](https://github.com/containerd/cri/blob/v1.0.0/docs/installation.md).
 - To install using LinuxKit on a local VM, see [here](https://github.com/linuxkit/linuxkit/tree/master/projects/kubernetes).
 
-Ref: 
+Ref:
 
 - [containerd/containerd](https://github.com/containerd/containerd)
 - https://containerd.io/
@@ -670,12 +812,12 @@ Ref:
 
 Ref: https://stackoverflow.com/questions/47006220/what-is-a-container-manifest
 
-> **An `image` is a combination of a JSON manifest and individual layer files**. The process of pulling an image centers around retrieving these two components. 
+> **An `image` is a combination of a JSON manifest and individual layer files**. The process of pulling an image centers around retrieving these two components.
 
 image 由 JSON manifest 和不同的 layer files 构成；镜像拉取行为正是围绕着这两部分内容展开的；
 
 > So when you pull an Image file:
-> 
+>
 > - Get Manifest:
 > ```
 > GET /v2/<name>/manifests/<reference>
@@ -717,13 +859,13 @@ manifest 事实上就是基于 JSON 方式描述的 named/tagged image ；这个
 
 From the official Docker docs:
 
-- Each instruction in a Dockerfile creates a layer in the image. When you change the Dockerfile and rebuild the image, only those layers which have changed are rebuilt. ([here](https://docs.docker.com/engine/docker-overview/#docker-objects)) 
+- Each instruction in a Dockerfile creates a layer in the image. When you change the Dockerfile and rebuild the image, only those layers which have changed are rebuilt. ([here](https://docs.docker.com/engine/docker-overview/#docker-objects))
 - Basically, a **layer**, or **image layer** is a change on an image, or an intermediate image. Every command you specify (`FROM`, `RUN`, `COPY`, etc.) in your Dockerfile causes the previous image to change, thus creating a new layer. You can think of it as staging changes when you're using git: You add a file's change, then another one, then another one...
 - The concept of layers comes in handy at the time of building images. Because layers are intermediate images, if you make a change to your Dockerfile, docker will build only the layer that was changed and the ones after that. This is called **layer caching**.
 - [Since Docker v1.10](https://blog.docker.com/2016/01/docker-1-10-rc/), with introduction of the **content addressable storage**, the notion of 'layer' became quite different. Layers have no notion of an image or of belonging to an image, they become merely collections of files and directories that can be shared across images. Layers and images became separated. ([here](https://windsock.io/explaining-docker-image-ids/))
 - Images are composed of layers. Each layer is a set of filesystem changes. Layers do not have configuration metadata such as environment variables or default arguments - these are properties of the image as a whole rather than any particular layer. ([here](https://github.com/moby/moby/blob/master/image/spec/v1.2.md))
-- A Docker image is built up from a series of layers. Each layer represents an instruction in the image’s Dockerfile. Each layer except the very last one is read-only. 
-- Each layer is only a set of differences from the layer before it. The layers are stacked on top of each other. When you create a new container, you add a new writable layer on top of the underlying layers. This layer is often called the “**container layer**”. All changes made to the running container, such as writing new files, modifying existing files, and deleting files, are written to this thin writable container layer. 
+- A Docker image is built up from a series of layers. Each layer represents an instruction in the image’s Dockerfile. Each layer except the very last one is read-only.
+- Each layer is only a set of differences from the layer before it. The layers are stacked on top of each other. When you create a new container, you add a new writable layer on top of the underlying layers. This layer is often called the “**container layer**”. All changes made to the running container, such as writing new files, modifying existing files, and deleting files, are written to this thin writable container layer.
 - A **storage driver** handles the details about the way these layers interact with each other.
 - Docker uses storage drivers to manage the contents of the **image layers** and the writable **container layer**. Each storage driver handles the implementation differently, but all drivers use stackable image layers and the copy-on-write (CoW) strategy.
 - **The major difference between a container and an image is the top writable layer**. All writes to the container that add new or modify existing data are stored in this writable layer. When the container is deleted, the writable layer is also deleted. The underlying image remains unchanged.
@@ -747,8 +889,8 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -ti alpine sh
 # Install the curl utility
 apk update && apk add curl
 
-# We can send a HTTP request to the /events endpoint through the Docker socket. 
-# The command hangs on waiting for new events from the daemon. 
+# We can send a HTTP request to the /events endpoint through the Docker socket.
+# The command hangs on waiting for new events from the daemon.
 # Each new events will then be streamed from the daemon.
 curl --unix-socket /var/run/docker.sock http://localhost/events
 ```
@@ -840,7 +982,7 @@ none on /home/test2 type aufs (rw,relatime,si=65f2e9cc676bf3bf,dio,dirperm1)
 
 ## alpine 是什么
 
-- A minimal Docker image based on Alpine Linux with a complete package index and only 5 MB in size! 
+- A minimal Docker image based on Alpine Linux with a complete package index and only 5 MB in size!
 - Alpine 操作系统是一个面向安全的轻型 Linux 发行版。它不同于通常 Linux 发行版，Alpine 采用了 musl libc 和 busybox 以减小系统的体积和运行时资源消耗，但功能上比 busybox 又完善的多，因此得到开源社区越来越多的青睐。在保持瘦身的同时，Alpine 还提供了自己的包管理工具 apk，可以通过 https://pkgs.alpinelinux.org/packages 网站上查询包信息，也可以直接通过 apk 命令直接查询和安装各种软件。
 - Alpine 中软件安装包的名字可能会与其他发行版有所不同，可以在 https://pkgs.alpinelinux.org/packages 网站搜索并确定安装包名称。如果需要的安装包不在主索引内，但是在测试或社区索引中。那么可以按照以下方法使用这些安装包；
 - Alpine 由非商业组织维护的，支持广泛场景的 Linux发行版，它特别为资深/重度Linux用户而优化，关注安全，性能和资源效能。Alpine 镜像可以适用于更多常用场景，并且是一个优秀的可以适用于生产的基础系统/环境。
@@ -882,7 +1024,7 @@ Ref: https://www.projectatomic.io/blog/2015/07/what-are-docker-none-none-images/
 Two kinds of `<none>:<none>` images:
 
 - The Good one: They stand for **intermediate images** and can be seen using `docker images -a`. They don’t result into a disk space problem, and can be useful for caching.
-- The Bad one: The **dangling images** which can cause disk space problems. A dangling file system layer in Docker is something that is unused and is not being referenced by any images. Hence we need a mechanism for Docker to clear these dangling images. Can be seen using `docker images -a`. These dangling images are produced as a result of `docker build` or `docker pull` command. 
+- The Bad one: The **dangling images** which can cause disk space problems. A dangling file system layer in Docker is something that is unused and is not being referenced by any images. Hence we need a mechanism for Docker to clear these dangling images. Can be seen using `docker images -a`. These dangling images are produced as a result of `docker build` or `docker pull` command.
 
 The next command can be used to clean up dangling images (Docker doesn’t have an automatic garbage collection system as of now. For now this command can be used to do a manual garbage collection):
 
