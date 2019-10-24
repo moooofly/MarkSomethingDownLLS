@@ -2,7 +2,7 @@
 
 ## 内容目录
 
-- [什么安装了 docker 后却没有 docker-runc 命令](#什么安装了-docker-后却没有-docker-runc-命令)
+- [为什么安装了 docker 后却没有 docker-runc 命令](#为什么安装了-docker-后却没有-docker-runc-命令)
 - [推荐的 docker 安装方法](#推荐的-docker-安装方法)
 - [/usr/bin/ 下各种 docker 命令之间的关系](#usrbin-下各种-docker-命令之间的关系)
 - [docker-container-shim](#docker-container-shim)
@@ -176,19 +176,79 @@ docker-containerd-ctr --address unix:///var/run/docker/libcontainerd/docker-cont
 
 ## 不同 Docker 版本生成的容器进程树对比
 
-### 18.09.7
+### 19.03.4
 
 ```
-[#108#root@ubuntu-dev ~]$ls /usr/bin |grep docker
-docker
-docker-compose
-docker-credential-secretservice
-dockerd
-docker-init
-docker-proxy
-wmdocker
-[#109#root@ubuntu-dev ~]$
+[#120#root@ubuntu-dev ~]$docker version
+Client: Docker Engine - Community
+ Version:           19.03.4
+ API version:       1.40
+ Go version:        go1.12.10
+ Git commit:        9013bf583a
+ Built:             Fri Oct 18 15:54:09 2019
+ OS/Arch:           linux/amd64
+ Experimental:      false
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          19.03.4
+  API version:      1.40 (minimum version 1.12)
+  Go version:       go1.12.10
+  Git commit:       9013bf583a
+  Built:            Fri Oct 18 15:52:40 2019
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.2.10
+  GitCommit:        b34a5c8af56e510852c35414db4c1f4fa6172339
+ runc:
+  Version:          1.0.0-rc8+dev
+  GitCommit:        3e425f80a8c931f88e6d94a8c831b9d5aa481657
+ docker-init:
+  Version:          0.18.0
+  GitCommit:        fec3683
+[#121#root@ubuntu-dev ~]$
 ```
+
+```
+[#148#root@ubuntu-dev ~]$ll /usr/bin |grep docker
+-rwxr-xr-x  1 root   root     88965200 Oct 18 23:52 docker*
+-rwxr-xr-x  1 root   root    104761824 Oct 18 23:52 dockerd*
+-rwxr-xr-x  1 root   root       804408 Oct 18 23:52 docker-init*
+-rwxr-xr-x  1 root   root      3593848 Oct 18 23:52 docker-proxy*
+[#149#root@ubuntu-dev ~]$
+```
+
+完整进程树信息
+
+```
+    1   604   604   604 ?           -1 Ssl      0   0:00 /usr/bin/containerd
+  604  2497  2497   604 ?           -1 Sl       0   0:00  \_ containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/5b9d5c50df37f3189bdab4513c354697cd717f1eb32d675ae7cb09276b491bfe -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc
+ 2497  2522  2522  2522 ?           -1 Ss       0   0:00      \_ /bin/sh -c /usr/sbin/sshd && bash /usr/bin/start-zk.sh
+ 2522  2582  2582  2582 ?           -1 Ss       0   0:00          \_ /usr/sbin/sshd
+ 2522  2583  2522  2522 ?           -1 S        0   0:00          \_ bash /usr/bin/start-zk.sh
+ 2583  2589  2522  2522 ?           -1 Sl       0   0:00              \_ /usr/lib/jvm/java-7-openjdk-amd64/bin/java -Dzookeeper.log.dir=. -Dzookeeper.root.logger=INFO,CONSOLE -cp /opt/zookeeper-3.4.13/bin/../build/classes:/opt/zookeeper-3.4.13/bin/../build/lib/*.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-log4j12-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-api-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/netty-3.10.6.Final.jar:/opt/zookeeper-3.4.13/bin/../lib/log4j-1.2.17.jar:/opt/zookeeper-3.4.13/bin/../lib/jline-0.9.94.jar:/opt/zookeeper-3.4.13/bin/../lib/audience-annotations-0.5.0.jar:/opt/zookeeper-3.4.13/bin/../zookeeper-3.4.13.jar:/opt/zookeeper-3.4.13/bin/../src/java/lib/*.jar:/opt/zookeeper-3.4.13/bin/../conf: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.local.only=false org.apache.zookeeper.server.quorum.QuorumPeerMain /opt/zookeeper-3.4.13/bin/../conf/zoo.cfg
+    1  1718  1718  1718 ?           -1 Ssl      0   0:00 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+ 1718  2489  1718  1718 ?           -1 Sl       0   0:00  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 2171 -container-ip 172.17.0.2 -container-port 2181
+```
+
+简化后
+
+```
+/usr/bin/containerd
+ \_ containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/5b9d5c50df37f3189bdab4513c354697cd717f1eb32d675ae7cb09276b491bfe -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc
+     \_ /bin/sh -c /usr/sbin/sshd && bash /usr/bin/start-zk.sh
+         \_ /usr/sbin/sshd
+         \_ bash /usr/bin/start-zk.sh
+             \_ /usr/lib/jvm/java-7-openjdk-amd64/bin/java -Dzookeeper.log.dir=. -Dzookeeper.root.logger=INFO,CONSOLE -cp /opt/zookeeper-3.4.13/bin/../build/classes:/opt/zookeeper-3.4.13/bin/../build/lib/*.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-log4j12-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/slf4j-api-1.7.25.jar:/opt/zookeeper-3.4.13/bin/../lib/netty-3.10.6.Final.jar:/opt/zookeeper-3.4.13/bin/../lib/log4j-1.2.17.jar:/opt/zookeeper-3.4.13/bin/../lib/jline-0.9.94.jar:/opt/zookeeper-3.4.13/bin/../lib/audience-annotations-0.5.0.jar:/opt/zookeeper-3.4.13/bin/../zookeeper-3.4.13.jar:/opt/zookeeper-3.4.13/bin/../src/java/lib/*.jar:/opt/zookeeper-3.4.13/bin/../conf: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.local.only=false org.apache.zookeeper.server.quorum.QuorumPeerMain /opt/zookeeper-3.4.13/bin/../conf/zoo.cfg
+
+/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+ \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 2171 -container-ip 172.17.0.2 -container-port 2181
+```
+
+
+### 18.09.7
+
 
 ```
 [#109#root@ubuntu-dev ~]$docker version
@@ -213,6 +273,15 @@ Server:
 [#110#root@ubuntu-dev ~]$
 ```
 
+```
+[#108#root@ubuntu-dev ~]$ls /usr/bin |grep docker
+docker
+dockerd
+docker-init
+docker-proxy
+[#109#root@ubuntu-dev ~]$
+```
+
 完整进程树信息
 
 
@@ -232,6 +301,7 @@ Server:
 ```
 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
  \_ /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 2171 -container-ip 172.17.0.2 -container-port 2181
+
 /usr/bin/containerd
  \_ containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/5b9d5c50df37f3189bdab4513c354697cd717f1eb32d675ae7cb09276b491bfe -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc
      \_ /bin/sh -c /usr/sbin/sshd && bash /usr/bin/start-zk.sh
