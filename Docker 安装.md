@@ -1,24 +1,29 @@
 # Docker 安装
 
+NOTE: last update 2019-10-24
+
 > 参考：[Get Docker CE for Ubuntu](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/)
 
 ## OS requirements of Docker CE
 
 To install Docker CE, you need the 64-bit version of one of these Ubuntu versions:
 
-- Zesty 17.04
+- Disco 19.04
+- Cosmic 18.10
+- Bionic 18.04 (LTS)
 - Xenial 16.04 (LTS)
-- Trusty 14.04 (LTS)
 
 ## Uninstall old versions
 
 Older versions of Docker were called `docker` or `docker-engine`. If these are installed, uninstall them:
 
 ```
-$ sudo apt-get remove docker docker-engine docker.io
+$ sudo apt-get remove docker docker-engine docker.io containerd runc
 ```
 
 The Docker CE package is now called `docker-ce`.
+
+The contents of `/var/lib/docker/`, including images, containers, volumes, and networks, are preserved. The **Docker Engine - Community** package is now called `docker-ce`.
 
 
 > **If you need to use `aufs`**
@@ -52,6 +57,7 @@ $ sudo apt-get install \
     apt-transport-https \
     ca-certificates \
     curl \
+    gnupg-agent \
     software-properties-common
 
 # Add Docker’s official GPG key
@@ -75,7 +81,7 @@ $ sudo add-apt-repository \
 $ sudo apt-get update
 
 # Install the latest version of Docker CE, or go to the next step to install a specific version. Any existing installation of Docker is replaced.
-$ sudo apt-get install docker-ce
+$ sudo apt-get install docker-ce docker-ce-cli containerd.io
 
 # On production systems, you should install a specific version of Docker CE instead of always using the latest. This output is truncated. List the available versions.
 $ apt-cache madison docker-ce
