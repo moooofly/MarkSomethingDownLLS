@@ -77,13 +77,13 @@ source ~/.git-flow-completion.zsh
 
 ### ubuntu
 
-`[git-flow](https://github.com/nvie/gitflow)` 安装：
+[`git-flow`](https://github.com/nvie/gitflow) 安装：
 
 ```
 $ apt-get install git-flow
 ```
 
-`[git-flow-completion](https://github.com/bobthecow/git-flow-completion)` 安装：
+[`git-flow-completion`](https://github.com/bobthecow/git-flow-completion) 安装：
 
 - [Install `git-completion`](https://github.com/bobthecow/git-flow-completion/wiki/Install-Bash-git-completion) (git-flow completion requires git-completion to work).
 - Install `git-flow-completion.bash`. 
